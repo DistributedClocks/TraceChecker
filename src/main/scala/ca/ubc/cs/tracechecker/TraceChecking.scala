@@ -71,6 +71,19 @@ trait TraceChecking {
       copy(description = fn(description))
   }
 
+  /**
+   * A TraceChecker[T] is somewhat similar to a Parser[T] from a parser combinator library.
+   *
+   * The key differences are:
+   * 1. TraceChecker will yield all possible interpretations of an input, always, whereas a Parser tends to seek one answer.
+   * 2. TraceChecker will output a complete description of the "tree" it navigated to reach a conclusion, whereas a Parser is more concerned with the result T.
+   *
+   * The reason for these differences is that, unlike in parsing proper, where the grammar being parser is considered "known",
+   * it is not necessarily obvious what specification (or part of specification) a TraceChecker is checking.
+   * Therefore, it is important to encode as much information as possible about what happened when giving a result.
+   *
+   * @tparam T the element type yielded by the checker
+   */
   abstract class TraceChecker[+T] extends (Input => TraceOutcome[T]) { self =>
     override def apply(input: Input): TraceOutcome[T]
 
@@ -89,12 +102,20 @@ trait TraceChecking {
     def mapDescription(fn: Description => Description): TraceChecker[T] =
       self.mapPassDescription(fn).mapViolationDescription(fn)
 
+    /**
+     * @param description a human-readable description of the condition being required
+     * @param pred a predicate to apply to the underling checker's result
+     * @return a new checker that performs all checks in self, then checks that all results satisfy pred
+     */
     def require(description: Description)(pred: T => Boolean): TraceChecker[T] =
       self.flatMap {
         case result if pred(result) => pass(d"requirement [$description] succeeded", result)
         case _ => violation(d"requirement [$description] failed")
       }
 
+    /**
+     * Converts between a checker with many results, and a checker with one result, which is a list of many results.
+     */
     def accumulated: TraceChecker[LazyList[T]] =
       TraceChecker { input =>
         self(input) match {
@@ -107,6 +128,10 @@ trait TraceChecking {
         }
       }
 
+    /**
+     * The conceptual inverse of .accumulated. Maps from a checker that results in some iterable, to
+     * a checker with many results, each of which is an element of the iterable.
+     */
     def flatten[U](implicit ev: T <:< Iterable[U]): TraceChecker[U] =
       TraceChecker { input =>
         self(input) match {
@@ -118,6 +143,9 @@ trait TraceChecking {
         }
       }
 
+    /**
+     * Yield (and therefore check up to) only the first result of the underlying checker.
+     */
     def first: TraceChecker[T] =
       TraceChecker { input =>
         self(input) match {
@@ -155,6 +183,10 @@ trait TraceChecking {
       for {t <- this; _ <- other_} yield t
     }
 
+    /**
+     * Combines two checkers, such that either checker producing a positive result is sufficient for the overall checker
+     * to produce a positive result. Roughly equivalent to logical OR.
+     */
     def |[U >: T](other: => TraceChecker[U]): TraceChecker[U] = {
       lazy val other_ = other
       TraceChecker { input =>
@@ -193,6 +225,10 @@ trait TraceChecking {
   def violation(description: Description): TraceChecker[Nothing] =
     TraceChecker { _ => TraceViolation(description) }
 
+  /**
+   * Succeeds if, scanning along the underlying trace, the checker tc is satisfied at any position.
+   * Yields all positions at which tc is satisfied, along with any related values.
+   */
   def anyOf[T](tc: =>TraceChecker[T]): TraceChecker[T] = {
     lazy val tc_ = tc
     TraceChecker { input =>
@@ -217,6 +253,9 @@ trait TraceChecking {
     }
   }
 
+  /**
+   * Like anyOf, but requires that tc be satisfied by at least one position. Will either fail, or will yield at least one result.
+   */
   def eventually[T](tc: =>TraceChecker[T]): TraceChecker[T] = {
     lazy val tc_ = tc
     TraceChecker { input =>
@@ -259,6 +298,9 @@ trait TraceChecking {
     }
   }
 
+  /**
+   * Apply tc, but yield a list of tc's results without consuming any input. Related to parser look-ahead.
+   */
   def guard[T](tc: TraceChecker[T]): TraceChecker[LazyList[T]] = {
     lazy val tc_ = tc
     TraceChecker { input =>
@@ -272,6 +314,10 @@ trait TraceChecking {
     }
   }
 
+  /**
+   * Same as guard, but operating on a list of underlying checkers, somewhat like a logical AND.
+   * All of tc must be satisfied in order for the resulting checker to be satisfied.
+   */
   def guards[T](tc: TraceChecker[T]*): TraceChecker[List[LazyList[T]]] =
     TraceChecker { input =>
       val results = tc.map(_(input))
@@ -289,6 +335,11 @@ trait TraceChecking {
       }
     }
 
+  /**
+   * Checks, at a single position, that the underlying element satisfied each of pred.
+   *
+   * Additionally, ctx is used to contextually rule out irrelevant elements that would otherwise have matched.
+   */
   def check(description: Description)(pred: TraceElement=>Boolean*)(implicit ctx: SearchContext[TraceElement]): TraceChecker[TraceElement] =
     TraceChecker {
       case input if input.isEmpty =>
@@ -308,6 +359,10 @@ trait TraceChecking {
   def once[T](tc: TraceChecker[T]): TraceChecker[T] =
     tc.requireCount(d"exactly once")(_ == 1)
 
+  /**
+   * Similar to logical negation. If tc fails, it succeeds. If tc succeeds, it fails.
+   * It does not consume input.
+   */
   def not(tc: => TraceChecker[Any]): TraceChecker[Unit] = {
     lazy val tc_ = tc
     TraceChecker { input =>
@@ -320,11 +375,21 @@ trait TraceChecking {
     }
   }
 
+  /**
+   * Checks tc "backwards", i.e passing to tc a flipped version of the underlying scanner.
+   *
+   * This allows for look-behind assertions, and should generally be used in conjunction with guard, to avoid
+   * confusion about checking "direction".
+   */
   def backwards[T](tc: =>TraceChecker[T]): TraceChecker[T] = {
     lazy val tc_ = tc.mapDescription(desc => d"backwards search:\n${desc.indented}")
     TraceChecker(input => tc_(input.flipped))
   }
 
+  /**
+   * Optionally matches tc. If tc does not match, yields a single None without consuming input.
+   * If tc does match, yields Some of all tc's results.
+   */
   def opt[T](tc: =>TraceChecker[T]): TraceChecker[Option[T]] = {
     lazy val tc_ = tc.mapDescription(desc => d"optionally:\n${desc.indented}")
     TraceChecker { input =>
@@ -337,6 +402,13 @@ trait TraceChecking {
     }
   }
 
+  /**
+   * A rough parallel to logical induction. Starting with the value init, checks fn(init), and,
+   * for any result elem, checks fn(elem), then, for any result elem', checks fn(elem'), and so forth.
+   *
+   * This, combined with careful use of .first, allows expressing more sophisticated patterns that depend on previous matches, such as alternating ones,
+   * for which the condition might be "not like the previous element".
+   */
   def induct[T](init: =>T)(fn: T => TraceChecker[T]): TraceChecker[T] = {
     lazy val init_ = init
     withLabel(d"reasoning by induction, starting at $init_") {

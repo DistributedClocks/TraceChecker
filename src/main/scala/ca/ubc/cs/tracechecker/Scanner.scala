@@ -3,6 +3,14 @@ package ca.ubc.cs.tracechecker
 import scala.collection.immutable.ArraySeq
 import scala.reflect.ClassTag
 
+/**
+ * A utility sequence-like class, used by TraceChecker[A] to scan back and forth along an execution trace.
+ *
+ * @param seq the underlying indexed sequence, within which this Scanner represents a position and a direction
+ * @param isFlipped whether the Scanner is scanning backwards (with decreasing indices)
+ * @param idx 0-based position within seq. May be -1 or seq.size if isEmpty is true
+ * @tparam A the element type
+ */
 class Scanner[+A] private (private val seq: IndexedSeq[A], val isFlipped: Boolean, private val idx: Int) { self =>
   def head: A = seq(idx)
 
