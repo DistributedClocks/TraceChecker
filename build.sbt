@@ -1,5 +1,5 @@
 name := "TraceChecker"
-version := "0.1-SNAPSHOT"
+version := "0.1"
 organization := "ca.ubc.cs"
 
 scalaVersion := "2.13.3"
