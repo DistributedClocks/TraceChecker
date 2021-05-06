@@ -1,33 +1,34 @@
 package ca.ubc.cs.tracechecker
 
-import scala.collection.immutable.ArraySeq
-import scala.reflect.ClassTag
+import scala.collection.{IterableFactoryDefaults, SeqFactory, StrictOptimizedLinearSeqOps, StrictOptimizedSeqFactory, mutable}
+import scala.collection.immutable.{AbstractSeq, LinearSeq, LinearSeqOps, StrictOptimizedSeqOps}
 
-/**
- * A utility sequence-like class, used by TraceChecker[A] to scan back and forth along an execution trace.
- *
- * @param seq the underlying indexed sequence, within which this Scanner represents a position and a direction
- * @param isFlipped whether the Scanner is scanning backwards (with decreasing indices)
- * @param idx 0-based position within seq. May be -1 or seq.size if isEmpty is true
- * @tparam A the element type
- */
-class Scanner[+A] private (private val seq: IndexedSeq[A], val isFlipped: Boolean, private val idx: Int) { self =>
-  def head: A = seq(idx)
+class Scanner[+A] private (private val underlying: IndexedSeq[A], val isFlipped: Boolean, private val idx: Int) extends AbstractSeq[A]
+  with LinearSeq[A]
+  with LinearSeqOps[A, Scanner, Scanner[A]]
+  with StrictOptimizedLinearSeqOps[A, Scanner, Scanner[A]]
+  with StrictOptimizedSeqOps[A, Scanner, Scanner[A]]
+  with IterableFactoryDefaults[A, Scanner]
+{ self =>
+  override def head: A = underlying(idx)
 
-  def headOption: Option[A] = if(seq.isDefinedAt(idx)) Some(seq(idx)) else None
+  override def knownSize: Int =
+    if(isFlipped) (idx + 1) else underlying.size - idx
+
+  override def headOption: Option[A] = if(underlying.isDefinedAt(idx)) Some(underlying(idx)) else None
 
   private def nextIdx: Int =
     if(isFlipped) idx - 1 else idx + 1
 
-  def tail: Scanner[A] = new Scanner(seq = seq, isFlipped = isFlipped, idx = nextIdx)
+  override def tail: Scanner[A] = new Scanner(underlying = underlying, isFlipped = isFlipped, idx = nextIdx)
 
   def flipped: Scanner[A] =
-    new Scanner(seq, !isFlipped,
+    new Scanner(underlying, !isFlipped,
       idx = if(isFlipped) idx + 1 else idx - 1)
 
-  def isEmpty: Boolean = !seq.isDefinedAt(idx)
+  override def isEmpty: Boolean = !underlying.isDefinedAt(idx)
 
-  def tails: Iterator[Scanner[A]] = new Iterator[Scanner[A]] {
+  override def tails: Iterator[Scanner[A]] = new Iterator[Scanner[A]] {
     private var curr = self
     override def hasNext: Boolean = curr ne null
     override def next(): Scanner[A] = {
@@ -40,14 +41,27 @@ class Scanner[+A] private (private val seq: IndexedSeq[A], val isFlipped: Boolea
       result
     }
   }
+
+  override def iterableFactory: SeqFactory[Scanner] = Scanner
 }
 
-object Scanner {
-  def apply[A](elems: A*)(implicit ct: ClassTag[A]): Scanner[A] =
-    apply(ArraySeq.from(elems))
+object Scanner extends StrictOptimizedSeqFactory[Scanner] {
+  override def from[A](source: IterableOnce[A]): Scanner[A] =
+    new Scanner[A](underlying = IndexedSeq.from(source), isFlipped = false, idx = 0)
 
-  def apply[A](seq: IndexedSeq[A]): Scanner[A] =
-    new Scanner[A](seq = seq, isFlipped = false, idx = 0)
+  override def empty[A]: Scanner[A] =
+    new Scanner[A](underlying = IndexedSeq.empty, isFlipped = false, idx = 0)
 
-  def empty: Scanner[Nothing] = apply(IndexedSeq.empty)
+  override def newBuilder[A]: mutable.Builder[A, Scanner[A]] = new mutable.Builder[A, Scanner[A]] {
+    private val buf = IndexedSeq.newBuilder[A]
+
+    override def clear(): Unit = buf.clear()
+
+    override def result(): Scanner[A] = new Scanner[A](underlying = buf.result(), isFlipped = false, idx = 0)
+
+    override def addOne(elem: A): this.type = {
+      buf.addOne(elem)
+      this
+    }
+  }
 }

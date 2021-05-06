@@ -7,7 +7,7 @@ class TraceCheckingTest extends AnyFunSpec with TraceChecking {
 
   type TraceElement = Int
 
-  private val trace1 = Scanner(1 to 10)
+  private val trace1 = Scanner.from(1 to 10)
 
   def checkPass[T](tc: TraceChecker[T], input: Input)(expected: (String,List[(T,Option[TraceElement])])): Unit = {
     tc(input) match {
