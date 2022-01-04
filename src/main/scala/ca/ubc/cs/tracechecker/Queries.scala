@@ -39,27 +39,38 @@ trait Queries {
     Query { ctx =>
       val outerCtx = ctx
       query(ctx.withoutEntries) match {
-        case Accept(value, ctx) => Accept(value, outerCtx.withGroup(name, ctx))
+        case Accept(value, ctx) => Accept(value, outerCtx)
         case Reject(msg, ctx, relatedValues, positionInfo) =>
           Reject(msg, outerCtx.withGroup(name, ctx), relatedValues, positionInfo = positionInfo)
       }
     }
 
+  final def call[T](query: Query[T])(implicit positionInfo: PositionInfo): Query[T] =
+    group(positionInfo.toString)(query)
+
   /**
-   * A Query[Unit] that trivially succeeds with the given message.
+   * A Query[Unit] that trivially succeeds.
    */
-  final def accept[T](result: =>T): Query[T] =
-    Query { ctx =>
-      Accept(result, ctx)
-    }
+  object accept extends Query[Unit] {
+    /**
+     * Optionally, accept may be applied to a custom result result value to produce a Query[T] that trivially succeeds.
+     */
+    def apply[T](result: =>T): Query[T] =
+      Query { ctx =>
+        Accept(result, ctx)
+      }
+
+    override def apply(ctx: QueryContext): Result[Unit] =
+      Accept((), ctx)
+  }
 
   /**
    * A Query[Nothing] that trivially fails with the given message
    * (thus having effectively no result type).
    */
-  final def reject(msg: =>String)(implicit positionInfo: PositionInfo): Query[Nothing] =
+  final def reject(msg: =>String, contextualValues: List[Any] = Nil)(implicit positionInfo: PositionInfo): Query[Nothing] =
     Query { ctx =>
-      Reject(msg, ctx, Nil, positionInfo = positionInfo)
+      Reject(msg, ctx, contextualValues, positionInfo = positionInfo)
     }
 
   final def require(msg: =>String)(body: =>Boolean)(implicit positionInfo: PositionInfo): Query[Unit] =
@@ -71,32 +82,25 @@ trait Queries {
       }
     }
 
-  final def forall(name: String) = new {
-    def apply[T](dataQuery: Query[Iterable[T]])(fn: PartialFunction[T,Query[Any]]): Query[Unit] =
-      dataQuery.flatMap { data =>
-        apply(data)(fn)
-      }
-
-    def apply[T](data: Iterable[T])(fn: PartialFunction[T,Query[Any]]): Query[Unit] =
-      Query { ctx =>
-        data.iterator
-          .foldLeft(None: Option[Reject]) { (acc, t) =>
-            acc.orElse {
-              fn.unapply(t).flatMap { q =>
-                acc match {
-                  case Some(_) => acc
-                  case None =>
-                    q(ctx.withObservation(name, t)) match {
-                      case Accept(_, _) => None
-                      case r@Reject(_, _, _, _) => Some(r)
-                    }
-                }
+  final def forall[T](name: String)(data: Iterable[T])(fn: PartialFunction[T,Query[Any]])(implicit positionInfo: PositionInfo): Query[Unit] =
+    Query { ctx =>
+      data.iterator
+        .foldLeft(None: Option[Reject]) { (acc, t) =>
+          acc.orElse {
+            fn.unapply(t).flatMap { q =>
+              acc match {
+                case Some(_) => acc
+                case None =>
+                  q(ctx.withObservation(name, t)) match {
+                    case Accept(_, _) => None
+                    case r@Reject(_, _, _, _) => Some(r)
+                  }
               }
             }
           }
-          .getOrElse(Accept((), ctx))
-      }
-  }
+        }
+        .getOrElse(Accept((), ctx))
+    }
 
   final def exists[T](name: String)(data: Iterable[T])(fn: PartialFunction[T,Query[Any]])(implicit positionInfo: PositionInfo): Query[Unit] =
     Query { ctx =>
@@ -124,6 +128,6 @@ object Queries extends Queries {
                                     ctx: QueryContext, relatedValues: List[Any]) extends RuntimeException(
     s"""materialize at $materializePositionInfo failed:
        |  $msg at $positionInfo.
-       |dumping context: ${prettyprint.apply(ctx)}
-       |dumping related values: ${prettyprint.apply(relatedValues)}""".stripMargin)
+       |dumping context: ${pprint.apply(ctx)}
+       |dumping related values: ${pprint.apply(relatedValues)}""".stripMargin)
 }

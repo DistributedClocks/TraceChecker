@@ -1,5 +1,7 @@
 package ca.ubc.cs.tracechecker
 
+import ca.ubc.cs.tracechecker.Query.Quantifying
+
 /**
  * A Query, which either logically succeeds or does not.
  *
@@ -26,6 +28,9 @@ abstract class Query[+T] { self =>
         case r@Reject(_, _, _, _) => r
       }
     }
+
+  final def asUnit: Query[Unit] =
+    self.map(_ => ())
 
   /**
    * The typical error short-circuiting "bind" operator.
@@ -77,16 +82,40 @@ abstract class Query[+T] { self =>
       }
     }
 
-  final def forall[E](name: String)(implicit ev: T <:< Iterable[E], positionInfo: PositionInfo) =
-    new {
-      def apply(fn: PartialFunction[E,Query[Any]]): Query[Unit] =
-        for { data <- self; _ <- Queries.forall(name)(data)(fn) } yield ()
+  final def requireEmpty(implicit ev: T <:< Iterable[Any], positionInfo: PositionInfo): Query[Unit] =
+    Query { ctx =>
+      self(ctx) match {
+        case Accept(value, ctx) =>
+          if (value.isEmpty) {
+            Accept((), ctx)
+          } else {
+            Reject("values were matched that should not have been; see relevant values", ctx, value.toList, positionInfo = positionInfo)
+          }
+        case r@Reject(_, _, _, _) => r
+      }
     }
 
-  final def exists[E](name: String)(fn: PartialFunction[E,Query[Any]])(implicit ev: T <:< Iterable[E], positionInfo: PositionInfo): Query[Unit] =
-    for { data <- self; _ <- Queries.exists(name)(data)(fn) } yield ()
+  final def requireSome(implicit ev: T <:< Iterable[Any], positionInfo: PositionInfo): Query[T] =
+    self.require(_ => "collection should not be empty")(_.nonEmpty)
+
+  final def quantifying[E](name: String)(implicit ev: T <:< Iterable[E], positionInfo: PositionInfo): Quantifying[T,E] =
+    new Quantifying[T,E](name = name, query = self)
+
+  final def latestPredecessors[U <: AnyRef](from: Element)(fn: PartialFunction[Element,U])(implicit ev: T <:< CausalRelation): Query[LazyList[U]] =
+    self.flatMap(_.latestPredecessors(from)(fn))
+
+  final def earliestSuccessors[U <: AnyRef](from: Element)(fn: PartialFunction[Element,U])(implicit ev: T <:< CausalRelation): Query[LazyList[U]] =
+    self.flatMap(_.earliestSuccessors(from)(fn))
 }
 
 object Query {
   def apply[T](fn: QueryContext => Result[T]): Query[T] = fn(_)
+
+  final class Quantifying[+T,E](name: String, query: Query[T])(implicit ev: T <:< Iterable[E], positionInfo: PositionInfo) {
+    def forall(fn: PartialFunction[E,Query[Any]]): Query[Unit] =
+      for { data <- query; _ <- Queries.forall(name)(data)(fn) } yield ()
+
+    def exists(fn: PartialFunction[E,Query[Any]]): Query[Unit] =
+      for { data <- query; _ <- Queries.exists(name)(data)(fn) } yield ()
+  }
 }

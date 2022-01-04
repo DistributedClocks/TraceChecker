@@ -10,9 +10,9 @@ object prettyprint extends pprint.PPrinter {
       pprint.Tree.Apply(
         elem.productPrefix,
         Iterator(
-          pprint.Tree.KeyValue("lineNumber", treeify(elem.lineNumber)),
-          pprint.Tree.KeyValue("vectorClock", treeify(elem.vectorClock)),
-          pprint.Tree.KeyValue("traceId", treeify(elem.traceId)),
-        ) ++ pprint.ProductSupport.treeifyProductElements(elem, this))
+          pprint.Tree.KeyValue("lineNumber", treeify(elem.lineNumber, this.defaultEscapeUnicode, this.defaultShowFieldNames)),
+          pprint.Tree.KeyValue("vectorClock", treeify(elem.vectorClock, this.defaultEscapeUnicode, this.defaultShowFieldNames)),
+          pprint.Tree.KeyValue("traceId", treeify(elem.traceId, this.defaultEscapeUnicode, this.defaultShowFieldNames)),
+        ) ++ pprint.ProductSupport.treeifyProductElements(elem, this, this.defaultEscapeUnicode, this.defaultShowFieldNames))
   }
 }

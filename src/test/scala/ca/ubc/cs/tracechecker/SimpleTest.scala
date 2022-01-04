@@ -26,7 +26,7 @@ class SimpleTest extends AnyFunSuite {
 
       val rootRule: RootRule = RootRule(
         rule("r1") {
-          forall("trace")(traces) {
+          traces.quantifying("trace").forall {
             case (id, trace@ContainsClientStart(clientStart)) =>
               for {
                 _ <- label("id")(id)

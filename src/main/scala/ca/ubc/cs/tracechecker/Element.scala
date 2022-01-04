@@ -63,7 +63,7 @@ object Element {
   }
   case class ReceiveTokenTrace(token: String) extends Element
 
-  implicit object ElementVectorClockPartialOrdering extends PartialOrdering[Element] {
+  implicit object VectorClockPartialOrdering extends PartialOrdering[Element] {
     override def lteq(x: Element, y: Element): Boolean =
       x.vectorClock.keysIterator.forall(k => x.vectorClock(k) <= y.vectorClock.getOrElse(k, 0L))
 
@@ -80,5 +80,16 @@ object Element {
         None
       }
     }
+  }
+
+  /**
+   * An unsound ordering on vector clocks: incomparable vector clocks are considered equal.
+   * Useful for sorting, but no guarantees.
+   */
+  object VectorClockOrdering extends Ordering[Element] {
+    private val partialOrdering = implicitly[PartialOrdering[Element]]
+
+    override def compare(x: Element, y: Element): Int =
+      partialOrdering.tryCompare(x, y).getOrElse(0)
   }
 }

@@ -25,7 +25,7 @@ abstract class Specification[E <: Element : ElementParser : ClassTag] extends Qu
 
   def rootRule: RootRule
 
-  final def rule(name: String, desc: String = "", pointValue: Double = -1)(query: Query[Unit])(implicit positionInfo: PositionInfo): Rule =
+  final def rule(name: String, desc: String = "", pointValue: Double = -1)(query: Query[Any])(implicit positionInfo: PositionInfo): Rule =
     new SingleRule(
       name = name,
       query = query,
@@ -75,7 +75,7 @@ object Specification {
 
     def renderRuleListHeading(indent: Int, success: Boolean): Iterator[Str] =
       Iterator.fill(indent)(Str("  ")) ++
-        Iterator[Str](if(success) checkMark else crossMark, " ", name, ": ", desc.map(Str(_)).getOrElse(Str("<no description>")), "\n")
+        Iterator[Str](if(success) checkMark else crossMark, " ", name, desc.map(desc => Str(s": $desc")).getOrElse(Str("")), "\n")
   }
 
   trait CommonMultiRuleOps {
@@ -121,7 +121,7 @@ object Specification {
       new RootRule(rules = rules.toList, pointValue = Some(pointValue))
   }
 
-  private final class SingleRule(val name: String, query: Query[Unit], val desc: Option[String], pointValue: Option[Double])(implicit val positionInfo: PositionInfo) extends Rule with CommonRuleOps {
+  private final class SingleRule(val name: String, query: Query[Any], val desc: Option[String], pointValue: Option[Double])(implicit val positionInfo: PositionInfo) extends Rule with CommonRuleOps {
     def availablePts: Double = {
       require(pointValue.nonEmpty, s"rule $name defined at $positionInfo does not have a point value")
       pointValue.get
@@ -144,7 +144,7 @@ object Specification {
             // the pprinter's usual methods won't pprint starting at a set indentation; this rough copy-paste of
             // tokenize forces the matter by providing a non-0 indentCount to start (relying on our indents and their indents both == 2)
             def wranglePPrinter(x: Any, indentCount: Int): Iterator[Str] = {
-              val tree = prettyprint.treeify(x)
+              val tree = prettyprint.treeify(x, prettyprint.defaultEscapeUnicode, prettyprint.defaultShowFieldNames)
               val renderer = new pprint.Renderer(prettyprint.defaultWidth, prettyprint.colorApplyPrefix, prettyprint.colorLiteral, prettyprint.defaultIndent)
               val rendered = renderer.rec(tree, 0, indentCount = indentCount).iter
               // Truncate the output stream once it's wrapped-at-width height goes
@@ -171,10 +171,13 @@ object Specification {
               }
             }
 
-            Iterator.fill(indent)(Str("  ")) ++ Iterator[Str](crossMark, " ", prefix, name, " (", configs(configIdx).logName, "):\n") ++
+            Iterator.fill(indent)(Str("  ")) ++ Iterator[Str](crossMark, " ", prefix, name, " (file ", configs(configIdx).logName, "):\n") ++
               renderContext(ctx, indent = indent + 1) ++
               View.fromIteratorProvider(() => Iterator.fill(maxIndent + 1)(Str("  "))) ++ Iterator[Str](Str(msg).overlay(Color.Red).overlay(Bold.On), " at ", positionInfo.toString, "\n") ++
-              View.fromIteratorProvider(() => Iterator.fill(maxIndent + 1)(Str("  "))) ++ Iterator[Str]("contextually relevant values: ") ++ wranglePPrinter(relatedValues, indentCount = maxIndent + 1) ++ Iterator[Str]("\n")
+              (if(relatedValues.nonEmpty) {
+                (View.fromIteratorProvider(() => Iterator.fill(maxIndent + 1)(Str("  "))) ++ Iterator[Str]("contextually relevant values: ") ++ wranglePPrinter(relatedValues, indentCount = maxIndent + 1) ++ Iterator[Str]("\n"))
+                  .iterator
+              } else Iterator.empty[Str])
           }
 
         override def grade: Double = {
@@ -207,7 +210,7 @@ object Specification {
             results.iterator.flatMap(_.ruleList(indent = indent + 1))
 
         override def counterExamples(prefix: String, indent: Int): Iterator[Str] =
-          results.iterator.flatMap(_.counterExamples(prefix = s"$prefix$name.", indent = indent))
+          results.iterator.flatMap(_.counterExamples(prefix = s"$prefix$name -:- ", indent = indent))
 
         override def grade: Double = calculateGrade(results)
       }

@@ -40,7 +40,7 @@ final class CausalRelation private(private val predecessors: Map[ById[Element],L
         Iterator.empty
       } else {
         visitedNodes += ById(from)
-        println(s"$from >>=${predecessors.getOrElse(ById(from), Nil).mkString("\n  ", "\n  ", "")}")
+        //println(s"$from >>=${predecessors.getOrElse(ById(from), Nil).mkString("\n  ", "\n  ", "")}")
         predecessors.getOrElse(ById(from), Nil)
           .iterator
           .filter(elem => elem.vectorClock.exists { case (k, clock) => clock > minVClock.getOrElse(k, 0L) })
@@ -88,18 +88,7 @@ final class CausalRelation private(private val predecessors: Map[ById[Element],L
 
 object CausalRelation {
   def apply(elements: IterableOnce[Element]): CausalRelation = {
-    /**
-     * An unsound ordering on vector clocks: incomparable vector clocks are considered equal.
-     * Useful for sorting, but no guarantees.
-     */
-    object ElementVectorClockOrdering extends Ordering[Element] {
-      private val partialOrdering = implicitly[PartialOrdering[Element]]
-
-      override def compare(x: Element, y: Element): Int =
-        partialOrdering.tryCompare(x, y).getOrElse(0)
-    }
-
-    val sortedElements = elements.iterator.toArray.sortInPlace()(ElementVectorClockOrdering)
+    val sortedElements = elements.iterator.toArray.sortInPlace()(Element.VectorClockOrdering)
 
     val wavefront = mutable.HashMap.empty[String,Element]
     val sends = mutable.HashMap.empty[String,mutable.HashMap[Long,Element]]
