@@ -37,13 +37,16 @@ final class CausalRelation private(private val predecessors: Map[ById[Element],L
 
     def crawler(from: Element): Iterator[U] =
       if(visitedNodes(ById(from))) {
+        //println(s"visited: $from")
         Iterator.empty
       } else {
         visitedNodes += ById(from)
         //println(s"$from >>=${predecessors.getOrElse(ById(from), Nil).mkString("\n  ", "\n  ", "")}")
         predecessors.getOrElse(ById(from), Nil)
           .iterator
-          .filter(elem => elem.vectorClock.exists { case (k, clock) => clock > minVClock.getOrElse(k, 0L) })
+          //.tapEach(elem => println(s"pred: $elem"))
+          .filterNot(_ <-< minVClock)
+          //.tapEach(elem => println(s"cons: $elem"))
           .flatMap { to =>
             fn.unapply(to) match {
               case None => crawler(to)
@@ -54,9 +57,11 @@ final class CausalRelation private(private val predecessors: Map[ById[Element],L
           }
       }
 
+    //println("---")
     Queries.accept(
       crawler(from)
         .distinctBy(ById(_))
+        //.tapEach(println)
         .to(LazyList))
   }
 
@@ -84,6 +89,16 @@ final class CausalRelation private(private val predecessors: Map[ById[Element],L
         .distinctBy(ById(_))
         .to(LazyList))
   }
+
+  def toDotPredecessors: String =
+    s"digraph {\n${
+      predecessors.view.flatMap {
+        case (succ, preds) =>
+          preds.view.map(_ -> succ.ref)
+      }
+        .map { case pred -> succ => s"\"$pred\" -> \"$succ\";" }
+        .mkString("\n")
+    }\n}"
 }
 
 object CausalRelation {
@@ -103,6 +118,7 @@ object CausalRelation {
           assert(prevElem.vectorClockSelf + 1 == elem.vectorClockSelf)
 
           // necessarily, this elem happens-after the last elem we saw from that node
+          assert(prevElem <-< elem)
           pairs += prevElem -> elem
         case None => // nothing special: just add to wavefront below and wait for event 2 from that node
       }
@@ -112,6 +128,7 @@ object CausalRelation {
         case (otherId, otherClock) =>
           sends.getOrElseUpdate(otherId, mutable.HashMap.empty).get(otherClock) match {
             case Some(otherElem) =>
+              assert(otherElem <-< elem)
               pairs += otherElem -> elem
             case None =>
           }

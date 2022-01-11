@@ -34,7 +34,7 @@ trait Element extends Product {
 
   def isSend: Boolean = false
 
-  final def vectorClockSelf: Long = vectorClock(tracerIdentity)
+  final def vectorClockSelf: Long = vectorClock.getOrElse(tracerIdentity, 0)
 
   override def toString: String =
     s"[$lineNumber] $productPrefix(${
@@ -52,8 +52,11 @@ trait Element extends Product {
     }}#$traceId"
 
   final def <-<(other: Element): Boolean =
-    vectorClock.forall { case (key, clock) => clock <= other.vectorClock.getOrElse(key, 0L) } &&
-      vectorClock.exists { case (key, clock) => clock < other.vectorClock.getOrElse(key, 0L) }
+    this <-< other.vectorClock
+
+  final def <-<(other: Map[String,Long]): Boolean =
+    (vectorClock.keysIterator ++ other.keysIterator).forall { key => other.getOrElse(key, 0L) >= vectorClock.getOrElse(key, 0L) } &&
+      other.exists { case (key, clock) => clock > vectorClock.getOrElse(key, 0L) }
 }
 
 object Element {

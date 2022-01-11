@@ -16,4 +16,5 @@ lazy val root = project
 
     libraryDependencies += "org.scalatest" %% "scalatest" % "3.2.9" % Test,
     libraryDependencies += "io.github.java-diff-utils" % "java-diff-utils" % "4.11" % Test,
+    libraryDependencies += "org.scalacheck" %% "scalacheck" % "1.15.4" % Test,
   )

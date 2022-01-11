@@ -75,8 +75,10 @@ abstract class Query[+T] { self =>
         case Accept(value, ctx) =>
           if(value.size == 1) {
             Accept(value.head, ctx)
-          } else {
+          } else if(value.size > 1) {
             Reject("more than one value matched; see relevant values", ctx, value.toList, positionInfo = positionInfo)
+          } else {
+            Reject("no values matched", ctx, Nil, positionInfo = positionInfo)
           }
         case r@Reject(_, _, _, _) => r
       }
