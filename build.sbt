@@ -2,9 +2,9 @@
 lazy val root = project
   .in(file("."))
   .settings(
-    name := "TraceChecker",
-    version := "0.1.0-SNAPSHOT",
-    organization := "ca.ubc.cs",
+    name := "tracechecker",
+    version := "0.1.0",
+    organization := "com.github.distributedclocks",
     scalaVersion := "2.13.7",
 
     libraryDependencies += "org.scala-lang" % "scala-reflect" % scalaVersion.value,

@@ -1,4 +1,5 @@
-package ca.ubc.cs.tracechecker
+package com.github.distributedclocks.tracechecker
+
 import pprint.Tree
 
 object prettyprint extends pprint.PPrinter {

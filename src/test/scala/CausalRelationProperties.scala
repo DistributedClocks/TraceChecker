@@ -1,7 +1,7 @@
-package ca.ubc.cs.tracechecker
+package com.github.distributedclocks.tracechecker
 
-import org.scalatest.funsuite.AnyFunSuite
 import org.scalacheck.Properties
+import org.scalatest.funsuite.AnyFunSuite
 
 class CausalRelationProperties extends AnyFunSuite {
   CausalRelationProperties.properties.foreach {

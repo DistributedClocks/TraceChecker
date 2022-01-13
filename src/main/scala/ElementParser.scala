@@ -1,12 +1,12 @@
-package ca.ubc.cs.tracechecker
+package com.github.distributedclocks.tracechecker
+
+import spray.json.DefaultJsonProtocol._
+import spray.json._
 
 import scala.language.experimental.macros
-import scala.reflect.macros.blackbox
-import spray.json._
-import DefaultJsonProtocol._
-
 import scala.reflect.api
 import scala.reflect.api.{TreeCreator, Universe}
+import scala.reflect.macros.blackbox
 
 abstract class ElementParser[E <: Element] {
   def apply(lines: IterableOnce[String]): List[Element]
@@ -85,7 +85,7 @@ object ElementParser {
         val implicitTree: c.Tree = c.internal.gen.mkMethodCall(protocolSym.companion, jsonFormatName, companionRef :: argNames.map(name => q"$name"))
 
         val specialisedRecordParserTree =
-          q"new _root_.ca.ubc.cs.tracechecker.ElementParser.SpecialisedRecordParser[${cls.toType}](${cls.name.toString})($implicitTree)"
+          q"new _root_.com.github.distributedclocks.tracechecker.ElementParser.SpecialisedRecordParser[${cls.toType}](${cls.name.toString})($implicitTree)"
 
         Expr.apply[RecordParser](c.mirror, new TreeCreator {
           override def apply[U <: Universe with Singleton](m: api.Mirror[U]): U#Tree =

@@ -1,8 +1,8 @@
-package ca.ubc.cs.tracechecker
+package com.github.distributedclocks.tracechecker
 
-import scala.collection.{View, mutable}
 import fansi._
 
+import scala.collection.{View, mutable}
 import scala.reflect.ClassTag
 
 abstract class Specification[E <: Element : ElementParser : ClassTag] extends Queries {

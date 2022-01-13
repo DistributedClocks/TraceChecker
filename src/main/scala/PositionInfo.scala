@@ -1,4 +1,4 @@
-package ca.ubc.cs.tracechecker
+package com.github.distributedclocks.tracechecker
 
 final case class PositionInfo(lineNumber: Int, file: String) {
   override def toString: String = s"$file:$lineNumber"

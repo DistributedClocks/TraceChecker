@@ -1,6 +1,4 @@
-package ca.ubc.cs.tracechecker
-
-import ca.ubc.cs.tracechecker.Query.Quantifying
+package com.github.distributedclocks.tracechecker
 
 /**
  * A Query, which either logically succeeds or does not.
@@ -125,8 +123,8 @@ abstract class Query[+T] { self =>
    * Helper for building logical quantifications out of queries producing collections.
    * Returns a Quantifying builder, which provides methods for building forall or exists quantifications.
    */
-  final def quantifying[E](name: String)(implicit ev: T <:< Iterable[E], positionInfo: PositionInfo): Quantifying[T,E] =
-    new Quantifying[T,E](name = name, query = self)
+  final def quantifying[E](name: String)(implicit ev: T <:< Iterable[E], positionInfo: PositionInfo): Query.Quantifying[T,E] =
+    new Query.Quantifying[T,E](name = name, query = self)
 
   /**
    * Helper for easily invoking CausalRelation.latestPredecessors on Query[CausalRelation].

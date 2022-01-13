@@ -1,4 +1,4 @@
-package ca.ubc.cs.tracechecker
+package com.github.distributedclocks.tracechecker
 
 trait Element extends Product {
   private[this] var _lineNumber: Option[Int] = None

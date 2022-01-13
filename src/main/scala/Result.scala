@@ -1,4 +1,4 @@
-package ca.ubc.cs.tracechecker
+package com.github.distributedclocks.tracechecker
 
 sealed abstract class Result[+T] {
   val ctx: QueryContext
