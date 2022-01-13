@@ -6,12 +6,19 @@ import fansi._
 import scala.reflect.ClassTag
 
 abstract class Specification[E <: Element : ElementParser : ClassTag] extends Queries {
+  /**
+   * Query for accessing all elements of type E in all traces loaded from the current log.
+   */
   final val elements: Query[List[E]] =
     materialize {
       val eTag = implicitly[ClassTag[E]]
       rawElements.map(_.collect { case eTag(e) => e })
     }
 
+  /**
+   * Query for accessing all traces in the current log, encoded as pairs of trace ID and trace elements.
+   * Like elements, this will contain only elements of type E.
+   */
   final val traces: Query[List[(String,List[E])]] =
     materialize {
       elements.map { elements =>
@@ -25,6 +32,13 @@ abstract class Specification[E <: Element : ElementParser : ClassTag] extends Qu
 
   def rootRule: RootRule
 
+  /**
+   * Specifies a single rule, whose semantics are defined by an underlying query.
+   * If the query succeeds, the rule is satisfied. Otherwise, the rule is not satisfied.
+   *
+   * Optionally, a long-form description may be provided, as well as a point value.
+   * Not providing a point value means operations involving points will be non-functional, and should not be used.
+   */
   final def rule(name: String, desc: String = "", pointValue: Double = -1)(query: Query[Any])(implicit positionInfo: PositionInfo): Rule =
     new SingleRule(
       name = name,
@@ -32,6 +46,14 @@ abstract class Specification[E <: Element : ElementParser : ClassTag] extends Qu
       desc = if(desc != "") Some(desc) else None,
       pointValue = if(pointValue >= 0) Some(pointValue) else None)
 
+  /**
+   * Specifies a compound rule, whose semantics depends on all of the subRules.
+   *
+   * A long-form description may optionally be provided.
+   * Additionally, a pointValue may be provided. If the pointValue is provided, it will be used as a scaling factor
+   * out of which all the sub-rules will be counted.
+   * If no pointValue is provided, the rule will count the sum of all points scored by the sub-rules.
+   */
   final def multiRule(name: String, desc: String = "", pointValue: Double = -1)(subRules: Rule*): Rule =
     new MultiRule(
       name = name,
@@ -39,6 +61,9 @@ abstract class Specification[E <: Element : ElementParser : ClassTag] extends Qu
       pointValue = if(pointValue >= 0) Some(pointValue) else None,
       rules = subRules.toList)
 
+  /**
+   * Check each log path against rootRule, and report the outcome using RuleResults.
+   */
   final def checkRules(logPaths: os.Path*): RuleResults = {
     val elementParser = implicitly[ElementParser[E]]
     rootRule.exec(logPaths.iterator.map { path =>
@@ -165,7 +190,7 @@ object Specification {
                   case QueryContext.ValueEntry(value) =>
                     Iterator.single(Str(s"$entryName := ")) ++ wranglePPrinter(value, indentCount = indent) ++ Iterator.single(Str("\n"))
                   case QueryContext.GroupEntry(ctx) =>
-                    Iterator.single(Str(s"subgroup $entryName:\n")) ++
+                    Iterator.single(Str(s"$entryName:\n")) ++
                       renderContext(ctx, indent = indent + 1)
                 })
               }

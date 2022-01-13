@@ -51,12 +51,15 @@ trait Element extends Product {
         .mkString(", ")
     }}#$traceId"
 
-  final def <-<(other: Element): Boolean =
-    this <-< other.vectorClock
+  final def <-<(other: Element): Boolean = vcLessThan(vectorClock, other.vectorClock)
 
-  final def <-<(other: Map[String,Long]): Boolean =
-    (vectorClock.keysIterator ++ other.keysIterator).forall { key => other.getOrElse(key, 0L) >= vectorClock.getOrElse(key, 0L) } &&
-      other.exists { case (key, clock) => clock > vectorClock.getOrElse(key, 0L) }
+  final def <-<(other: Map[String,Long]): Boolean = vcLessThan(vectorClock, other)
+
+  final def :<-<:(other: Map[String,Long]): Boolean = vcLessThan(other, vectorClock)
+
+  private def vcLessThan(left: Map[String,Long], right: Map[String,Long]): Boolean =
+    (left.keysIterator ++ right.keysIterator).forall { key => right.getOrElse(key, 0L) >= left.getOrElse(key, 0L) } &&
+      right.exists { case (key, clock) => clock > left.getOrElse(key, 0L) }
 }
 
 object Element {

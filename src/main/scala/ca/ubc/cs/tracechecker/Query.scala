@@ -33,8 +33,9 @@ abstract class Query[+T] { self =>
     self.map(_ => ())
 
   /**
-   * The typical error short-circuiting "bind" operator.
-   * Allows chaining of queries
+   * Allows monadic chaining of queries.
+   * Produces a query that, if this query succeeds with result t, produces the result of the query fn(t).
+   * If this query fails, it will short-circuit any further processing.
    */
   final def flatMap[U](fn: T => Query[U]): Query[U] =
     Query { ctx =>
@@ -44,6 +45,9 @@ abstract class Query[+T] { self =>
       }
     }
 
+  /**
+   * A short-cut to Queries.label, which labels the result of the current query as name in the query execution context.
+   */
   final def label(name: String): Query[T] =
     Query { ctx =>
       self(ctx) match {
@@ -53,9 +57,8 @@ abstract class Query[+T] { self =>
     }
 
   /**
-   * Essentially an assertion. Transform the existing query, applying the predicate fn to any successful result.
-   * If fn(t) == true, succeed, including descr in the explanation. Otherwise, fail, also including descr
-   * in the explanation.
+   * Assert that fn(t) must hold for any successful result of this query.
+   * If fn(t) == true, succeed. Otherwise, fail and include descr(t) as explanation.
    */
   final def require(descr: T=>String)(fn: T => Boolean)(implicit positionInfo: PositionInfo): Query[T] =
     self.flatMap { t =>
@@ -84,6 +87,10 @@ abstract class Query[+T] { self =>
       }
     }
 
+  /**
+   * Helper for asserting that a query should produce an empty collection.
+   * Fails if the collection is non-empty, succeeds with a unit value otherwise.
+   */
   final def requireEmpty(implicit ev: T <:< Iterable[Any], positionInfo: PositionInfo): Query[Unit] =
     Query { ctx =>
       self(ctx) match {
@@ -97,26 +104,59 @@ abstract class Query[+T] { self =>
       }
     }
 
+  /**
+   * Helper for asserting that a query returns a non-empty collection.
+   * Yields the came collection untouched if it is non-empty, fails otherwise.
+   *
+   * Lists the collection as a "relevant value".
+   */
   final def requireSome(implicit ev: T <:< Iterable[Any], positionInfo: PositionInfo): Query[T] =
-    self.require(_ => "collection should not be empty")(_.nonEmpty)
+    self.flatMap { collection =>
+      Query { ctx =>
+        if(collection.nonEmpty) {
+          Accept(collection, ctx)
+        } else {
+          Reject("collection should not be empty", ctx, List(collection), positionInfo)
+        }
+      }
+    }
 
+  /**
+   * Helper for building logical quantifications out of queries producing collections.
+   * Returns a Quantifying builder, which provides methods for building forall or exists quantifications.
+   */
   final def quantifying[E](name: String)(implicit ev: T <:< Iterable[E], positionInfo: PositionInfo): Quantifying[T,E] =
     new Quantifying[T,E](name = name, query = self)
 
+  /**
+   * Helper for easily invoking CausalRelation.latestPredecessors on Query[CausalRelation].
+   */
   final def latestPredecessors[U <: AnyRef](from: Element)(fn: PartialFunction[Element,U])(implicit ev: T <:< CausalRelation): Query[LazyList[U]] =
     self.flatMap(_.latestPredecessors(from)(fn))
 
+  /**
+   * Helper for easily invoking CausalRelation.earliestSuccessors on Query[CausalRelation]
+   */
   final def earliestSuccessors[U <: AnyRef](from: Element)(fn: PartialFunction[Element,U])(implicit ev: T <:< CausalRelation): Query[LazyList[U]] =
     self.flatMap(_.earliestSuccessors(from)(fn))
 }
 
 object Query {
+  /**
+   * For building custom queries. Most queries are built out of this at some level, look around the source code for examples.
+   */
   def apply[T](fn: QueryContext => Result[T]): Query[T] = fn(_)
 
   final class Quantifying[+T,E](name: String, query: Query[T])(implicit ev: T <:< Iterable[E], positionInfo: PositionInfo) {
+    /**
+     * Short-cut for invoking Queries.forall.
+     */
     def forall(fn: PartialFunction[E,Query[Any]]): Query[Unit] =
       for { data <- query; _ <- Queries.forall(name)(data)(fn) } yield ()
 
+    /**
+     * Short-cut for invoking Queries.exists.
+     */
     def exists(fn: PartialFunction[E,Query[Any]]): Query[Unit] =
       for { data <- query; _ <- Queries.exists(name)(data)(fn) } yield ()
   }

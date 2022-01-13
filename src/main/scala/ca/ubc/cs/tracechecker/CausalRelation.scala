@@ -3,93 +3,75 @@ package ca.ubc.cs.tracechecker
 import scala.collection.mutable
 
 final class CausalRelation private(private val predecessors: Map[ById[Element],List[Element]], private val successors: Map[ById[Element],List[Element]], private val nodes: List[Element]) {
-  private def vClockMax(lhs: Map[String,Long], rhs: Map[String,Long]): Map[String,Long] =
-    (lhs.keysIterator ++ rhs.keysIterator)
-      .map(key => key -> math.max(lhs.getOrElse(key, 0L), rhs.getOrElse(key, 0L)))
-      .toMap
 
-  private def vClockMin(lhs: Map[String,Long], rhs: Map[String,Long]): Map[String,Long] =
-    (lhs.keysIterator ++ rhs.keysIterator)
-      .map(key => key -> math.min(lhs.getOrElse(key, 0L), rhs.getOrElse(key, 0L)))
-      .toMap
-
-  private lazy val maxVClock: Map[String,Long] =
-    nodes.view
-      .map(_.vectorClock)
-      .reduceOption(vClockMax)
-      .getOrElse(Map.empty)
-
-  /**
-   * Starting at member from, work "backwards" through the relation's implied graph.
-   * For all instances x --> from, where there does not exist any x --> y -->* from, yield x.
-   *
-   * A similar "forwards" utility should exist.
-   */
-  def latestPredecessors[U <: AnyRef](from: Element)(fn: PartialFunction[Element,U]): Query[LazyList[U]] = {
-    // the vector clock you are not allowed to happen-before.
-    // it is possible in more complex graphs for the crawler below to go "the long way round" and get "behind"
-    // an existing match for fn. if we record a minimum allowable clock, combining the vector clocks of all
-    // nodes we've accepted so far, then the crawler will disregard any such node it finds, alongside anything that
-    // happens-before it.
-    var minVClock = Map.empty[String,Long]
-
+  private def crawlGraph[U](from: Element, graph: Map[ById[Element],List[Element]], fn: PartialFunction[Element,U]): Iterator[(Element,U)] = {
     val visitedNodes = mutable.HashSet.empty[ById[Element]]
 
-    def crawler(from: Element): Iterator[U] =
+    def crawler(from: Element): Iterator[(Element,U)] =
       if(visitedNodes(ById(from))) {
-        //println(s"visited: $from")
         Iterator.empty
       } else {
         visitedNodes += ById(from)
-        //println(s"$from >>=${predecessors.getOrElse(ById(from), Nil).mkString("\n  ", "\n  ", "")}")
-        predecessors.getOrElse(ById(from), Nil)
+        graph.getOrElse(ById(from), Nil)
           .iterator
-          //.tapEach(elem => println(s"pred: $elem"))
-          .filterNot(_ <-< minVClock)
-          //.tapEach(elem => println(s"cons: $elem"))
           .flatMap { to =>
             fn.unapply(to) match {
               case None => crawler(to)
-              case s@Some(_) =>
-                minVClock = vClockMax(minVClock, from.vectorClock)
-                s
+              case Some(u) => Some(to -> u)
             }
           }
       }
 
-    //println("---")
-    Queries.accept(
-      crawler(from)
-        .distinctBy(ById(_))
-        //.tapEach(println)
-        .to(LazyList))
+    crawler(from)
   }
 
-  def earliestSuccessors[U <: AnyRef](from: Element)(fn: PartialFunction[Element,U]): Query[LazyList[U]] = {
-    var maxVClock = Map.empty[String,Long]
-
-    def crawler(from: Element): Iterator[U] =
-      successors.getOrElse(ById(from), Nil)
-        .iterator
-        .filter(_.vectorClock.forall { case (k, clock) => clock <= maxVClock.getOrElse(k, 0L) })
-        .flatMap { to =>
-          fn.unapply(to) match {
-            case None => crawler(to)
-            case s@Some(_) =>
-              maxVClock = (maxVClock.keysIterator ++ to.vectorClock.keysIterator)
-                .map(k => k -> Math.min(maxVClock.getOrElse(k, 0L), to.vectorClock.getOrElse(k, 0L)))
-                .toMap
-
-              s
+  /**
+   * Starting at member from, work "backwards" through the relation's implied graph.
+   * For all instances x --> from, where x satisfies fn, and here does not exist any x --> y -->* from, yield x.
+   *
+   * This query yields a sequence of matching elements, none of which happens-before any other, to account for ambiguous/branching causality graphs.
+   * Use fn's precondition to manipulate which elements the query considers "interesting",
+   * e.g "give me the most recent instance(s) of record X".
+   */
+  def latestPredecessors[U <: AnyRef](from: Element)(fn: PartialFunction[Element,U]): Query[LazyList[U]] =
+    Queries.accept(
+      crawlGraph(from, predecessors, fn)
+        .distinctBy(_._1.lineNumber)
+        .foldLeft(Nil: List[(Element,U)]) { (pairs, p) =>
+          val filteredPairs = pairs.filterNot(_._1 <-< p._1)
+          if(!filteredPairs.exists(p._1 <-< _._1)) {
+            p :: filteredPairs
+          } else {
+            filteredPairs
           }
         }
-
-    Queries.accept(
-      crawler(from)
-        .distinctBy(ById(_))
+        .view.map(_._2)
         .to(LazyList))
-  }
 
+  /**
+   * This query operates as co-query to latestPredecessors. All the configuration is the same, but the causality graph
+   * is navigated in the opposite direction.
+   */
+  def earliestSuccessors[U <: AnyRef](from: Element)(fn: PartialFunction[Element,U]): Query[LazyList[U]] =
+    Queries.accept(
+      crawlGraph(from, successors, fn)
+        .distinctBy(_._1.lineNumber)
+        .foldLeft(Nil: List[(Element,U)]) { (pairs, p) =>
+          val filteredPairs = pairs.filterNot(p._1 <-< _._1)
+          if(!filteredPairs.exists(_._1 <-< p._1)) {
+            p :: filteredPairs
+          } else {
+            filteredPairs
+          }
+        }
+        .view.map(_._2)
+        .to(LazyList))
+
+  /**
+   * Generates a description of the happens-before graph in DOT language, which can then be displayed via graphviz.
+   * Uses the internal adjacency map in the "before" direction.
+   * May help debugging.
+   */
   def toDotPredecessors: String =
     s"digraph {\n${
       predecessors.view.flatMap {
@@ -99,9 +81,32 @@ final class CausalRelation private(private val predecessors: Map[ById[Element],L
         .map { case pred -> succ => s"\"$pred\" -> \"$succ\";" }
         .mkString("\n")
     }\n}"
+
+  /**
+   * Same as toDotPredecessors, but using the internal adjacency map in the "after" direction.
+   * May help debugging.
+   */
+  def toDotSuccessors: String =
+    s"digraph {\n${
+      successors.view.flatMap {
+        case (pred, succs) =>
+          succs.view.map(pred.ref -> _)
+      }
+        .map { case pred -> succ => s"\"$pred\" -> \"$succ\";" }
+        .mkString("\n")
+    }\n}"
 }
 
 object CausalRelation {
+  /**
+   * Constructs an instance of CausalRelation from a sequence of Element instances, which can be used to express
+   * concepts of "the most recent" or "the earliest following".
+   *
+   * Assumptions (checked via assertions):
+   * - there are no "gaps" in the vector clocks, that is, every traceId should produce a strictly increasing sequence of local vector clock indices
+   * - the same element shall not appear twice, that is, no two elements shall have the same line number or vector clock
+   * - basic vector clock rules: vector clocks reported in sequence by the same node will happen-before/after each other
+   */
   def apply(elements: IterableOnce[Element]): CausalRelation = {
     val sortedElements = elements.iterator.toArray.sortInPlace()(Element.VectorClockOrdering)
 

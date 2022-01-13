@@ -36,7 +36,7 @@ class SimpleTest extends AnyFunSuite {
                 _ <- exists("clientStop")(trace) {
                   case clientStop@Record.ClientStop() =>
                     for {
-                      _ <- require("clientStop happens-after clientStart")(clientStop <-< clientStart) // obvious mistake for testing
+                      _ <- require("clientStop happens-after clientStart")(clientStart <-< clientStop)
                     } yield ()
                 }
               } yield ()
@@ -47,10 +47,11 @@ class SimpleTest extends AnyFunSuite {
 
     val results = Spec.checkRules(os.pwd / "src" / "test" / "files" / "echo" / "trace_log.txt")
 
-    results.ruleList().foreach(System.out.print)
-    println()
-    results.counterExamples().foreach(System.out.print)
-    println()
-    println(s"ok? ${results.success}")
+//    results.ruleList().foreach(System.out.print)
+//    println()
+//    results.counterExamples().foreach(System.out.print)
+//    println()
+//    println(s"ok? ${results.success}")
+    assert(results.success)
   }
 }
