@@ -1,0 +1,340 @@
+(?<host>\S*) (?<clock>{.*})\n(?<event>.*)
+
+echo_server {"echo_server":1}
+3318265616227424719 CreateTrace {}
+echo_server {"echo_server":2}
+3318265616227424719 ServerStart {}
+client1 {"client1":1}
+4733983094015607429 CreateTrace {}
+client1 {"client1":2}
+4733983094015607429 ClientStart {"Kill":false,"RequestCount":10}
+client1 {"client1":3}
+128425910260572360 CreateTrace {}
+client1 {"client1":4}
+128425910260572360 ClientSend {}
+client1 {"client1":5}
+128425910260572360 GenerateTokenTrace {"Token":"p2NsaWVudDHPAchCr1kJoMiBp2NsaWVudDEF"}
+echo_server {"echo_server":3, "client1":5}
+128425910260572360 ReceiveTokenTrace {"Token":"p2NsaWVudDHPAchCr1kJoMiBp2NsaWVudDEF"}
+echo_server {"echo_server":4, "client1":5}
+128425910260572360 ServerEcho {"Kill":false}
+echo_server {"echo_server":5, "client1":5}
+3318265616227424719 GenerateTokenTrace {"Token":"q2VjaG9fc2VydmVyzy4M2P89oNnPgqtlY2hvX3NlcnZlcgWnY2xpZW50MQU="}
+client1 {"client1":6, "echo_server":5}
+3318265616227424719 ReceiveTokenTrace {"Token":"q2VjaG9fc2VydmVyzy4M2P89oNnPgqtlY2hvX3NlcnZlcgWnY2xpZW50MQU="}
+client1 {"client1":7, "echo_server":5}
+3318265616227424719 ClientReceive {}
+client1 {"echo_server":5, "client1":8}
+1730286668673196601 CreateTrace {}
+client1 {"client1":9, "echo_server":5}
+1730286668673196601 ClientSend {}
+client1 {"echo_server":5, "client1":10}
+1730286668673196601 GenerateTokenTrace {"Token":"p2NsaWVudDHPGAM2jsXcIjmCp2NsaWVudDEKq2VjaG9fc2VydmVyBQ=="}
+echo_server {"echo_server":6, "client1":10}
+1730286668673196601 ReceiveTokenTrace {"Token":"p2NsaWVudDHPGAM2jsXcIjmCp2NsaWVudDEKq2VjaG9fc2VydmVyBQ=="}
+echo_server {"echo_server":7, "client1":10}
+1730286668673196601 ServerEcho {"Kill":false}
+echo_server {"echo_server":8, "client1":10}
+3318265616227424719 GenerateTokenTrace {"Token":"q2VjaG9fc2VydmVyzy4M2P89oNnPgqtlY2hvX3NlcnZlcginY2xpZW50MQo="}
+client1 {"echo_server":8, "client1":11}
+3318265616227424719 ReceiveTokenTrace {"Token":"q2VjaG9fc2VydmVyzy4M2P89oNnPgqtlY2hvX3NlcnZlcginY2xpZW50MQo="}
+client1 {"client1":12, "echo_server":8}
+3318265616227424719 ClientReceive {}
+client1 {"client1":13, "echo_server":8}
+5047038132039193828 CreateTrace {}
+client1 {"client1":14, "echo_server":8}
+5047038132039193828 ClientSend {}
+client1 {"client1":15, "echo_server":8}
+5047038132039193828 GenerateTokenTrace {"Token":"p2NsaWVudDHPRgqucNQMFOSCp2NsaWVudDEPq2VjaG9fc2VydmVyCA=="}
+echo_server {"client1":15, "echo_server":9}
+5047038132039193828 ReceiveTokenTrace {"Token":"p2NsaWVudDHPRgqucNQMFOSCp2NsaWVudDEPq2VjaG9fc2VydmVyCA=="}
+echo_server {"echo_server":10, "client1":15}
+5047038132039193828 ServerEcho {"Kill":false}
+echo_server {"client1":15, "echo_server":11}
+3318265616227424719 GenerateTokenTrace {"Token":"q2VjaG9fc2VydmVyzy4M2P89oNnPgqtlY2hvX3NlcnZlcgunY2xpZW50MQ8="}
+client1 {"client1":16, "echo_server":11}
+3318265616227424719 ReceiveTokenTrace {"Token":"q2VjaG9fc2VydmVyzy4M2P89oNnPgqtlY2hvX3NlcnZlcgunY2xpZW50MQ8="}
+client1 {"client1":17, "echo_server":11}
+3318265616227424719 ClientReceive {}
+client1 {"client1":18, "echo_server":11}
+7389480644680871604 CreateTrace {}
+client1 {"client1":19, "echo_server":11}
+7389480644680871604 ClientSend {}
+client1 {"client1":20, "echo_server":11}
+7389480644680871604 GenerateTokenTrace {"Token":"p2NsaWVudDHPZoy1fsTT7rSCp2NsaWVudDEUq2VjaG9fc2VydmVyCw=="}
+echo_server {"echo_server":12, "client1":20}
+7389480644680871604 ReceiveTokenTrace {"Token":"p2NsaWVudDHPZoy1fsTT7rSCp2NsaWVudDEUq2VjaG9fc2VydmVyCw=="}
+echo_server {"echo_server":13, "client1":20}
+7389480644680871604 ServerEcho {"Kill":false}
+echo_server {"echo_server":14, "client1":20}
+3318265616227424719 GenerateTokenTrace {"Token":"q2VjaG9fc2VydmVyzy4M2P89oNnPgqtlY2hvX3NlcnZlcg6nY2xpZW50MRQ="}
+client1 {"client1":21, "echo_server":14}
+3318265616227424719 ReceiveTokenTrace {"Token":"q2VjaG9fc2VydmVyzy4M2P89oNnPgqtlY2hvX3NlcnZlcg6nY2xpZW50MRQ="}
+client1 {"echo_server":14, "client1":22}
+3318265616227424719 ClientReceive {}
+client1 {"echo_server":14, "client1":23}
+2933751738688221696 CreateTrace {}
+client1 {"client1":24, "echo_server":14}
+2933751738688221696 ClientSend {}
+client1 {"client1":25, "echo_server":14}
+2933751738688221696 GenerateTokenTrace {"Token":"p2NsaWVudDHPKLbHqaOyMgCCp2NsaWVudDEZq2VjaG9fc2VydmVyDg=="}
+echo_server {"echo_server":15, "client1":25}
+2933751738688221696 ReceiveTokenTrace {"Token":"p2NsaWVudDHPKLbHqaOyMgCCp2NsaWVudDEZq2VjaG9fc2VydmVyDg=="}
+echo_server {"echo_server":16, "client1":25}
+2933751738688221696 ServerEcho {"Kill":false}
+echo_server {"echo_server":17, "client1":25}
+3318265616227424719 GenerateTokenTrace {"Token":"q2VjaG9fc2VydmVyzy4M2P89oNnPgqtlY2hvX3NlcnZlchGnY2xpZW50MRk="}
+client1 {"client1":26, "echo_server":17}
+3318265616227424719 ReceiveTokenTrace {"Token":"q2VjaG9fc2VydmVyzy4M2P89oNnPgqtlY2hvX3NlcnZlchGnY2xpZW50MRk="}
+client1 {"client1":27, "echo_server":17}
+3318265616227424719 ClientReceive {}
+client1 {"client1":28, "echo_server":17}
+325482305138143738 CreateTrace {}
+client1 {"client1":29, "echo_server":17}
+325482305138143738 ClientSend {}
+client1 {"client1":30, "echo_server":17}
+325482305138143738 GenerateTokenTrace {"Token":"p2NsaWVudDHPBIRYbppvMfqCp2NsaWVudDEeq2VjaG9fc2VydmVyEQ=="}
+echo_server {"echo_server":18, "client1":30}
+325482305138143738 ReceiveTokenTrace {"Token":"p2NsaWVudDHPBIRYbppvMfqCp2NsaWVudDEeq2VjaG9fc2VydmVyEQ=="}
+echo_server {"echo_server":19, "client1":30}
+325482305138143738 ServerEcho {"Kill":false}
+echo_server {"echo_server":20, "client1":30}
+3318265616227424719 GenerateTokenTrace {"Token":"q2VjaG9fc2VydmVyzy4M2P89oNnPgqtlY2hvX3NlcnZlchSnY2xpZW50MR4="}
+client1 {"client1":31, "echo_server":20}
+3318265616227424719 ReceiveTokenTrace {"Token":"q2VjaG9fc2VydmVyzy4M2P89oNnPgqtlY2hvX3NlcnZlchSnY2xpZW50MR4="}
+client1 {"client1":32, "echo_server":20}
+3318265616227424719 ClientReceive {}
+client1 {"client1":33, "echo_server":20}
+2000564961749619199 CreateTrace {}
+client1 {"client1":34, "echo_server":20}
+2000564961749619199 ClientSend {}
+client1 {"client1":35, "echo_server":20}
+2000564961749619199 GenerateTokenTrace {"Token":"p2NsaWVudDHPG8NvO7ct0f+Cp2NsaWVudDEjq2VjaG9fc2VydmVyFA=="}
+echo_server {"echo_server":21, "client1":35}
+2000564961749619199 ReceiveTokenTrace {"Token":"p2NsaWVudDHPG8NvO7ct0f+Cp2NsaWVudDEjq2VjaG9fc2VydmVyFA=="}
+echo_server {"echo_server":22, "client1":35}
+2000564961749619199 ServerEcho {"Kill":false}
+echo_server {"echo_server":23, "client1":35}
+3318265616227424719 GenerateTokenTrace {"Token":"q2VjaG9fc2VydmVyzy4M2P89oNnPgqdjbGllbnQxI6tlY2hvX3NlcnZlchc="}
+client1 {"client1":36, "echo_server":23}
+3318265616227424719 ReceiveTokenTrace {"Token":"q2VjaG9fc2VydmVyzy4M2P89oNnPgqdjbGllbnQxI6tlY2hvX3NlcnZlchc="}
+client1 {"echo_server":23, "client1":37}
+3318265616227424719 ClientReceive {}
+client1 {"client1":38, "echo_server":23}
+9062659086030611207 CreateTrace {}
+client1 {"client1":39, "echo_server":23}
+9062659086030611207 ClientSend {}
+client1 {"client1":40, "echo_server":23}
+9062659086030611207 GenerateTokenTrace {"Token":"p2NsaWVudDHPfcUIbDdSIweCp2NsaWVudDEoq2VjaG9fc2VydmVyFw=="}
+echo_server {"echo_server":24, "client1":40}
+9062659086030611207 ReceiveTokenTrace {"Token":"p2NsaWVudDHPfcUIbDdSIweCp2NsaWVudDEoq2VjaG9fc2VydmVyFw=="}
+echo_server {"client1":40, "echo_server":25}
+9062659086030611207 ServerEcho {"Kill":false}
+echo_server {"echo_server":26, "client1":40}
+3318265616227424719 GenerateTokenTrace {"Token":"q2VjaG9fc2VydmVyzy4M2P89oNnPgqtlY2hvX3NlcnZlchqnY2xpZW50MSg="}
+client1 {"client1":41, "echo_server":26}
+3318265616227424719 ReceiveTokenTrace {"Token":"q2VjaG9fc2VydmVyzy4M2P89oNnPgqtlY2hvX3NlcnZlchqnY2xpZW50MSg="}
+client1 {"client1":42, "echo_server":26}
+3318265616227424719 ClientReceive {}
+client1 {"client1":43, "echo_server":26}
+6938408440471359028 CreateTrace {}
+client1 {"client1":44, "echo_server":26}
+6938408440471359028 ClientSend {}
+client1 {"client1":45, "echo_server":26}
+6938408440471359028 GenerateTokenTrace {"Token":"p2NsaWVudDHPYEottyDeDjSCp2NsaWVudDEtq2VjaG9fc2VydmVyGg=="}
+echo_server {"echo_server":27, "client1":45}
+6938408440471359028 ReceiveTokenTrace {"Token":"p2NsaWVudDHPYEottyDeDjSCp2NsaWVudDEtq2VjaG9fc2VydmVyGg=="}
+echo_server {"echo_server":28, "client1":45}
+6938408440471359028 ServerEcho {"Kill":false}
+echo_server {"echo_server":29, "client1":45}
+3318265616227424719 GenerateTokenTrace {"Token":"q2VjaG9fc2VydmVyzy4M2P89oNnPgqtlY2hvX3NlcnZlch2nY2xpZW50MS0="}
+client1 {"client1":46, "echo_server":29}
+3318265616227424719 ReceiveTokenTrace {"Token":"q2VjaG9fc2VydmVyzy4M2P89oNnPgqtlY2hvX3NlcnZlch2nY2xpZW50MS0="}
+client1 {"echo_server":29, "client1":47}
+3318265616227424719 ClientReceive {}
+client1 {"client1":48, "echo_server":29}
+5698687001407713831 CreateTrace {}
+client1 {"client1":49, "echo_server":29}
+5698687001407713831 ClientSend {}
+client1 {"client1":50, "echo_server":29}
+5698687001407713831 GenerateTokenTrace {"Token":"p2NsaWVudDHPTxXNooUK8ieCq2VjaG9fc2VydmVyHadjbGllbnQxMg=="}
+echo_server {"echo_server":30, "client1":50}
+5698687001407713831 ReceiveTokenTrace {"Token":"p2NsaWVudDHPTxXNooUK8ieCq2VjaG9fc2VydmVyHadjbGllbnQxMg=="}
+echo_server {"echo_server":31, "client1":50}
+5698687001407713831 ServerEcho {"Kill":false}
+echo_server {"echo_server":32, "client1":50}
+3318265616227424719 GenerateTokenTrace {"Token":"q2VjaG9fc2VydmVyzy4M2P89oNnPgqtlY2hvX3NlcnZlciCnY2xpZW50MTI="}
+client1 {"client1":51, "echo_server":32}
+3318265616227424719 ReceiveTokenTrace {"Token":"q2VjaG9fc2VydmVyzy4M2P89oNnPgqtlY2hvX3NlcnZlciCnY2xpZW50MTI="}
+client1 {"client1":52, "echo_server":32}
+3318265616227424719 ClientReceive {}
+client1 {"echo_server":32, "client1":53}
+4733983094015607429 ClientStop {}
+client2 {"client2":1}
+5578556456008140358 CreateTrace {}
+client2 {"client2":2}
+5578556456008140358 ClientStart {"Kill":true,"RequestCount":10}
+client2 {"client2":3}
+123883238572517463 CreateTrace {}
+client2 {"client2":4}
+123883238572517463 ClientSend {}
+client2 {"client2":5}
+123883238572517463 GenerateTokenTrace {"Token":"p2NsaWVudDLPAbgfJiy9aFeBp2NsaWVudDIF"}
+echo_server {"client2":5, "echo_server":33, "client1":50}
+123883238572517463 ReceiveTokenTrace {"Token":"p2NsaWVudDLPAbgfJiy9aFeBp2NsaWVudDIF"}
+echo_server {"client2":5, "echo_server":34, "client1":50}
+123883238572517463 ServerEcho {"Kill":false}
+echo_server {"echo_server":35, "client1":50, "client2":5}
+3318265616227424719 GenerateTokenTrace {"Token":"q2VjaG9fc2VydmVyzy4M2P89oNnPg6tlY2hvX3NlcnZlciOnY2xpZW50MTKnY2xpZW50MgU="}
+client2 {"client1":50, "client2":6, "echo_server":35}
+3318265616227424719 ReceiveTokenTrace {"Token":"q2VjaG9fc2VydmVyzy4M2P89oNnPg6tlY2hvX3NlcnZlciOnY2xpZW50MTKnY2xpZW50MgU="}
+client2 {"client1":50, "client2":7, "echo_server":35}
+3318265616227424719 ClientReceive {}
+client2 {"client2":8, "echo_server":35, "client1":50}
+3888243654799198391 CreateTrace {}
+client2 {"echo_server":35, "client1":50, "client2":9}
+3888243654799198391 ClientSend {}
+client2 {"client2":10, "echo_server":35, "client1":50}
+3888243654799198391 GenerateTokenTrace {"Token":"p2NsaWVudDLPNfXRANR5CLeDp2NsaWVudDIKq2VjaG9fc2VydmVyI6djbGllbnQxMg=="}
+echo_server {"client2":10, "echo_server":36, "client1":50}
+3888243654799198391 ReceiveTokenTrace {"Token":"p2NsaWVudDLPNfXRANR5CLeDp2NsaWVudDIKq2VjaG9fc2VydmVyI6djbGllbnQxMg=="}
+echo_server {"echo_server":37, "client1":50, "client2":10}
+3888243654799198391 ServerEcho {"Kill":false}
+echo_server {"echo_server":38, "client1":50, "client2":10}
+3318265616227424719 GenerateTokenTrace {"Token":"q2VjaG9fc2VydmVyzy4M2P89oNnPg6tlY2hvX3NlcnZlcianY2xpZW50MTKnY2xpZW50Mgo="}
+client2 {"client2":11, "echo_server":38, "client1":50}
+3318265616227424719 ReceiveTokenTrace {"Token":"q2VjaG9fc2VydmVyzy4M2P89oNnPg6tlY2hvX3NlcnZlcianY2xpZW50MTKnY2xpZW50Mgo="}
+client2 {"client2":12, "echo_server":38, "client1":50}
+3318265616227424719 ClientReceive {}
+client2 {"client1":50, "client2":13, "echo_server":38}
+942000186763480201 CreateTrace {}
+client2 {"echo_server":38, "client1":50, "client2":14}
+942000186763480201 ClientSend {}
+client2 {"client1":50, "client2":15, "echo_server":38}
+942000186763480201 GenerateTokenTrace {"Token":"p2NsaWVudDLPDRKoLc5jjImDq2VjaG9fc2VydmVyJqdjbGllbnQxMqdjbGllbnQyDw=="}
+echo_server {"echo_server":39, "client1":50, "client2":15}
+942000186763480201 ReceiveTokenTrace {"Token":"p2NsaWVudDLPDRKoLc5jjImDq2VjaG9fc2VydmVyJqdjbGllbnQxMqdjbGllbnQyDw=="}
+echo_server {"client1":50, "client2":15, "echo_server":40}
+942000186763480201 ServerEcho {"Kill":false}
+echo_server {"echo_server":41, "client1":50, "client2":15}
+3318265616227424719 GenerateTokenTrace {"Token":"q2VjaG9fc2VydmVyzy4M2P89oNnPg6tlY2hvX3NlcnZlcimnY2xpZW50MTKnY2xpZW50Mg8="}
+client2 {"echo_server":41, "client1":50, "client2":16}
+3318265616227424719 ReceiveTokenTrace {"Token":"q2VjaG9fc2VydmVyzy4M2P89oNnPg6tlY2hvX3NlcnZlcimnY2xpZW50MTKnY2xpZW50Mg8="}
+client2 {"client1":50, "client2":17, "echo_server":41}
+3318265616227424719 ClientReceive {}
+client2 {"client1":50, "client2":18, "echo_server":41}
+5587170975583755606 CreateTrace {}
+client2 {"client2":19, "echo_server":41, "client1":50}
+5587170975583755606 ClientSend {}
+client2 {"client1":50, "client2":20, "echo_server":41}
+5587170975583755606 GenerateTokenTrace {"Token":"p2NsaWVudDLPTYmeZnMK3VaDp2NsaWVudDIUq2VjaG9fc2VydmVyKadjbGllbnQxMg=="}
+echo_server {"echo_server":42, "client1":50, "client2":20}
+5587170975583755606 ReceiveTokenTrace {"Token":"p2NsaWVudDLPTYmeZnMK3VaDp2NsaWVudDIUq2VjaG9fc2VydmVyKadjbGllbnQxMg=="}
+echo_server {"client1":50, "client2":20, "echo_server":43}
+5587170975583755606 ServerEcho {"Kill":false}
+echo_server {"echo_server":44, "client1":50, "client2":20}
+3318265616227424719 GenerateTokenTrace {"Token":"q2VjaG9fc2VydmVyzy4M2P89oNnPg6djbGllbnQyFKtlY2hvX3NlcnZlciynY2xpZW50MTI="}
+client2 {"client1":50, "client2":21, "echo_server":44}
+3318265616227424719 ReceiveTokenTrace {"Token":"q2VjaG9fc2VydmVyzy4M2P89oNnPg6djbGllbnQyFKtlY2hvX3NlcnZlciynY2xpZW50MTI="}
+client2 {"client2":22, "echo_server":44, "client1":50}
+3318265616227424719 ClientReceive {}
+client2 {"client2":23, "echo_server":44, "client1":50}
+3656332846061832426 CreateTrace {}
+client2 {"client2":24, "echo_server":44, "client1":50}
+3656332846061832426 ClientSend {}
+client2 {"client2":25, "echo_server":44, "client1":50}
+3656332846061832426 GenerateTokenTrace {"Token":"p2NsaWVudDLPMr3nWfYbyOqDp2NsaWVudDEyp2NsaWVudDIZq2VjaG9fc2VydmVyLA=="}
+echo_server {"client2":25, "echo_server":45, "client1":50}
+3656332846061832426 ReceiveTokenTrace {"Token":"p2NsaWVudDLPMr3nWfYbyOqDp2NsaWVudDEyp2NsaWVudDIZq2VjaG9fc2VydmVyLA=="}
+echo_server {"echo_server":46, "client1":50, "client2":25}
+3656332846061832426 ServerEcho {"Kill":false}
+echo_server {"echo_server":47, "client1":50, "client2":25}
+3318265616227424719 GenerateTokenTrace {"Token":"q2VjaG9fc2VydmVyzy4M2P89oNnPg6djbGllbnQyGatlY2hvX3NlcnZlci+nY2xpZW50MTI="}
+client2 {"echo_server":47, "client1":50, "client2":26}
+3318265616227424719 ReceiveTokenTrace {"Token":"q2VjaG9fc2VydmVyzy4M2P89oNnPg6djbGllbnQyGatlY2hvX3NlcnZlci+nY2xpZW50MTI="}
+client2 {"client2":27, "echo_server":47, "client1":50}
+3318265616227424719 ClientReceive {}
+client2 {"client2":28, "echo_server":47, "client1":50}
+7479455342095290995 CreateTrace {}
+client2 {"client2":29, "echo_server":47, "client1":50}
+7479455342095290995 ClientSend {}
+client2 {"client2":30, "echo_server":47, "client1":50}
+7479455342095290995 GenerateTokenTrace {"Token":"p2NsaWVudDLPZ8xdAXr80nODq2VjaG9fc2VydmVyL6djbGllbnQxMqdjbGllbnQyHg=="}
+echo_server {"echo_server":48, "client1":50, "client2":30}
+7479455342095290995 ReceiveTokenTrace {"Token":"p2NsaWVudDLPZ8xdAXr80nODq2VjaG9fc2VydmVyL6djbGllbnQxMqdjbGllbnQyHg=="}
+echo_server {"client1":50, "client2":30, "echo_server":49}
+7479455342095290995 ServerEcho {"Kill":false}
+echo_server {"echo_server":50, "client1":50, "client2":30}
+3318265616227424719 GenerateTokenTrace {"Token":"q2VjaG9fc2VydmVyzy4M2P89oNnPg6tlY2hvX3NlcnZlcjKnY2xpZW50MTKnY2xpZW50Mh4="}
+client2 {"client2":31, "echo_server":50, "client1":50}
+3318265616227424719 ReceiveTokenTrace {"Token":"q2VjaG9fc2VydmVyzy4M2P89oNnPg6tlY2hvX3NlcnZlcjKnY2xpZW50MTKnY2xpZW50Mh4="}
+client2 {"client2":32, "echo_server":50, "client1":50}
+3318265616227424719 ClientReceive {}
+client2 {"client2":33, "echo_server":50, "client1":50}
+1446332939185670309 CreateTrace {}
+client2 {"client2":34, "echo_server":50, "client1":50}
+1446332939185670309 ClientSend {}
+client2 {"client1":50, "client2":35, "echo_server":50}
+1446332939185670309 GenerateTokenTrace {"Token":"p2NsaWVudDLPFBJoJSsbyKWDp2NsaWVudDIjq2VjaG9fc2VydmVyMqdjbGllbnQxMg=="}
+echo_server {"client1":50, "client2":35, "echo_server":51}
+1446332939185670309 ReceiveTokenTrace {"Token":"p2NsaWVudDLPFBJoJSsbyKWDp2NsaWVudDIjq2VjaG9fc2VydmVyMqdjbGllbnQxMg=="}
+echo_server {"client1":50, "client2":35, "echo_server":52}
+1446332939185670309 ServerEcho {"Kill":false}
+echo_server {"echo_server":53, "client1":50, "client2":35}
+3318265616227424719 GenerateTokenTrace {"Token":"q2VjaG9fc2VydmVyzy4M2P89oNnPg6djbGllbnQyI6tlY2hvX3NlcnZlcjWnY2xpZW50MTI="}
+client2 {"client1":50, "client2":36, "echo_server":53}
+3318265616227424719 ReceiveTokenTrace {"Token":"q2VjaG9fc2VydmVyzy4M2P89oNnPg6djbGllbnQyI6tlY2hvX3NlcnZlcjWnY2xpZW50MTI="}
+client2 {"client2":37, "echo_server":53, "client1":50}
+3318265616227424719 ClientReceive {}
+client2 {"client2":38, "echo_server":53, "client1":50}
+3518601830591971849 CreateTrace {}
+client2 {"client2":39, "echo_server":53, "client1":50}
+3518601830591971849 ClientSend {}
+client2 {"client1":50, "client2":40, "echo_server":53}
+3518601830591971849 GenerateTokenTrace {"Token":"p2NsaWVudDLPMNSVuPp5QgmDp2NsaWVudDIoq2VjaG9fc2VydmVyNadjbGllbnQxMg=="}
+echo_server {"echo_server":54, "client1":50, "client2":40}
+3518601830591971849 ReceiveTokenTrace {"Token":"p2NsaWVudDLPMNSVuPp5QgmDp2NsaWVudDIoq2VjaG9fc2VydmVyNadjbGllbnQxMg=="}
+echo_server {"echo_server":55, "client1":50, "client2":40}
+3518601830591971849 ServerEcho {"Kill":false}
+echo_server {"echo_server":56, "client1":50, "client2":40}
+3318265616227424719 GenerateTokenTrace {"Token":"q2VjaG9fc2VydmVyzy4M2P89oNnPg6tlY2hvX3NlcnZlcjinY2xpZW50MTKnY2xpZW50Mig="}
+client2 {"client2":41, "echo_server":56, "client1":50}
+3318265616227424719 ReceiveTokenTrace {"Token":"q2VjaG9fc2VydmVyzy4M2P89oNnPg6tlY2hvX3NlcnZlcjinY2xpZW50MTKnY2xpZW50Mig="}
+client2 {"client2":42, "echo_server":56, "client1":50}
+3318265616227424719 ClientReceive {}
+client2 {"client2":43, "echo_server":56, "client1":50}
+2685496485810483875 CreateTrace {}
+client2 {"client2":44, "echo_server":56, "client1":50}
+2685496485810483875 ClientSend {}
+client2 {"client2":45, "echo_server":56, "client1":50}
+2685496485810483875 GenerateTokenTrace {"Token":"p2NsaWVudDLPJUTM01JLMqODp2NsaWVudDItq2VjaG9fc2VydmVyOKdjbGllbnQxMg=="}
+echo_server {"echo_server":57, "client1":50, "client2":45}
+2685496485810483875 ReceiveTokenTrace {"Token":"p2NsaWVudDLPJUTM01JLMqODp2NsaWVudDItq2VjaG9fc2VydmVyOKdjbGllbnQxMg=="}
+echo_server {"client1":50, "client2":45, "echo_server":58}
+2685496485810483875 ServerEcho {"Kill":false}
+echo_server {"client1":50, "client2":45, "echo_server":59}
+3318265616227424719 GenerateTokenTrace {"Token":"q2VjaG9fc2VydmVyzy4M2P89oNnPg6djbGllbnQxMqdjbGllbnQyLatlY2hvX3NlcnZlcjs="}
+client2 {"client2":46, "echo_server":59, "client1":50}
+3318265616227424719 ReceiveTokenTrace {"Token":"q2VjaG9fc2VydmVyzy4M2P89oNnPg6djbGllbnQxMqdjbGllbnQyLatlY2hvX3NlcnZlcjs="}
+client2 {"client2":47, "echo_server":59, "client1":50}
+3318265616227424719 ClientReceive {}
+client2 {"client2":48, "echo_server":59, "client1":50}
+7996016211708965347 CreateTrace {}
+client2 {"client1":50, "client2":49, "echo_server":59}
+7996016211708965347 ClientSend {}
+client2 {"echo_server":59, "client1":50, "client2":50}
+7996016211708965347 GenerateTokenTrace {"Token":"p2NsaWVudDLPbveOYT0tceODp2NsaWVudDIyq2VjaG9fc2VydmVyO6djbGllbnQxMg=="}
+echo_server {"echo_server":60, "client1":50, "client2":50}
+7996016211708965347 ReceiveTokenTrace {"Token":"p2NsaWVudDLPbveOYT0tceODp2NsaWVudDIyq2VjaG9fc2VydmVyO6djbGllbnQxMg=="}
+echo_server {"client1":50, "client2":50, "echo_server":61}
+7996016211708965347 ServerEcho {"Kill":true}
+echo_server {"client1":50, "client2":50, "echo_server":62}
+3318265616227424719 GenerateTokenTrace {"Token":"q2VjaG9fc2VydmVyzy4M2P89oNnPg6tlY2hvX3NlcnZlcj6nY2xpZW50MTKnY2xpZW50MjI="}
+echo_server {"client2":50, "echo_server":63, "client1":50}
+3318265616227424719 ServerStop {}
+client2 {"client2":51, "echo_server":62, "client1":50}
+3318265616227424719 ReceiveTokenTrace {"Token":"q2VjaG9fc2VydmVyzy4M2P89oNnPg6tlY2hvX3NlcnZlcj6nY2xpZW50MTKnY2xpZW50MjI="}
+client2 {"client2":52, "echo_server":62, "client1":50}
+3318265616227424719 ClientReceive {}
+client2 {"client1":50, "client2":53, "echo_server":62}
+5578556456008140358 ClientStop {}
