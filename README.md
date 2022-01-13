@@ -11,73 +11,131 @@ Intended for use in an educational context, this tool aims to make it feasible t
 For more precise explanations of individual operators, see the scaladoc comments.
 For a higher-level overview, read on.
 
-## Rationale
+## Design and Usage Overview
 
-The current version of this project takes heavy inspiration from Scala's parser combinators, considering
-verification to be a variation on the parsing problem.
-A log of actions is given as inputs, and it is linearly scanned in order to determine whether it contains
-correct or incorrect patterns.
-Patterns may depend on each other, and a successfully matching pattern doubles as an arbitrary query against
-the log.
+The current version of the project provides a DSL for expressing "Queries".
+The DSL allows the construction of objects of type `Query[T]`, which encapsulate the logic necessary to either compute a value of type `T`, or indicate what went wrong when trying to do so.
 
-A notable difference from parser combinators is that, unlike parsing, where there at every stage there is
-generally one "answer" (the desired AST, or an error), verification conditions may be highly ambiguous,
-and all combinations of a set of patterns must generally be checked.
-As a result, each `TraceChecker[T]` will yield an arbitrary number of results, rather than just one.
+For functional programmers, `Query[_]` is a fairly standard state + error monad with built-in features for expressing maximally readable error messages.
 
-Additionally, in order to be able to provide complete explanations (counter-examples, essentially) for any
-failures that are detected, a running checker will generate a tree of human-readable text representing
-its path through the log, alongside any relevant control flow.
-This is, alongside a basic pass/fail, is the primary output of a checker: an explanation of what does and
-does not work.
-
-## Usage example
-
+A `Query[T]`'s execution maintains facilities for annotating values of interest, e.g:
 ```scala
-guards(
-  withLabel(d"$PowlibMiningBegin must be first relevant action logged") {
-    eventually(check(d"first relevant action")())
-      .first
-      .require(d"should be $PowlibMiningBegin")(_.tag == PowlibMiningBegin)
-  },
-  withLabel(d"exactly one $PowlibMiningBegin, $PowlibMiningComplete pair, and $PowlibMiningComplete is not followed by any actions") {
-    once(eventually(check(PowlibMiningBegin.toDescription)(_.tracerId == runInfo.clientName, _.tag == PowlibMiningBegin))) ~>
-      once(eventually(check(PowlibMiningComplete.toDescription)(_.tracerId == runInfo.clientName, _.tag == PowlibMiningComplete))) ~>
-      not(eventually(check(d"any actions after PowlibMiningComplete")()))
-  })
-```
-
-The example above illustrates usage of the checker to express some properties.
-At the top level, two properties are being jointly verified, using the `guards` and `withLabel`
-to (1) branch verification into two different paths and (2) provide human-readable labels indicating the
-purpose of each path.
-
-The first property expresses that `eventually` there should be a context that passes the `check`, and that,
-if so, the `first` success is `require`d to yield a log element whose `tag` field is equal to the
-constant `PowlibMiningBegin`.
-
-The second property expresses that `eventually` there should be a log element that passes the `check` on the
-first line (which constraints multiple fields of a given log element via equalities), and that this
-eventuality should occur exactly `once`.
-Then (symbolically represented as `~>`), a further log element (reading from the location at which the previous
-property was satisfied, to the end of the log) should `eventually` satisfy the `check` on the second line,
-and that this eventuality should also be satisfied exactly `once`.
-If both of these properties are satisfied, then no further relevant actions may occur in the log past
-`PowlibMiningComplete`.
-This condition is expressed using an equivalent negation, that a `check` for further log elements should
-`not` `eventually` be satisfied.
-
-### Checking the property
-
-Any condition, such as the one above, will have the type `TraceChecker[T]`, for some `T`, depending on the
-condition's structure.
-`TraceChecker`s are callable, and checking can be done like so, using a `Scanner` (a sequence type optimised
-for use by a `TraceChecker`) as input:
-```scala
-traceChecker(scanner) match {
-  case TracePassed(desc, _) =>
-    println(s"success! ${desc.linesIterator.mkString("\n")}")
-  case TraceViolation(desc) =>
-    println(s"failure! ${desc.linesIterator.mkString("\n")}")
+interestingQuery.label("name").flatMap { interestingValue =>
+  reject("something went wrong")
 }
 ```
+
+Running this query, assuming `interestingQuery` succeeds, will produce a result that looks like this:
+```
+name := pretty-printed interestingValue
+  something went wrong at filename:linenumber
+```
+
+If a student were given the spec file, this error, and one of their traces, the positional information and contextual information should ensure errors are interpretable.
+Just providing a list of name-value bindings will not scale-however.
+For more complex queries, it is also possible to indicate nesting.
+Consider if the previous example was defined as a helper:
+
+```scala
+val helper: Query[T] = interestingQuery.label("name").flatMap { interestingValue =>
+   reject("something went wrong")
+}
+```
+
+Since `helper` might be referenced from multiple places, we should indicate where we came from if we fail, which can be done with the `call` combinator:
+```scala
+call(helper)
+```
+
+This will result in an annotation listing the `filename:line number` of that callsite as context:
+```
+filename:callsiteline:
+  name := pretty-printed interestingValue
+    something went wrong at filename: problemline
+```
+
+This structure can be nested arbitrarily, allowing queries of any complexity to provide stacktrace-like error descriptions of what went wrong.
+
+Based on this framework, rulesets applying to distributed traces can be specified using `Spec[E <: Element]` objects.
+
+```scala
+// once we define a sealed abstract root element type,
+// defining the tracing format is as simple as
+// listing out case class definitions
+sealed abstract class Record extends Element
+
+final case class ServerStart() extends Record
+final case class ServerEcho(kill: Boolean) extends Record
+final case class ServerStop() extends Record
+
+final case class ClientStart(kill: Boolean, requestCount: Int) extends Record
+final case class ClientSend() extends Record
+final case class ClientReceive() extends Record
+final case class ClientStop() extends Record
+
+// Spec[Record] invokes macros to auto-generate a JSON-to-Record parser
+object Specification extends Spec[Record] {
+   import Specification._
+
+   // you can define any helpers you need using normal Scala idioms
+   // this extractor is used to look for distributed traces
+   // containing ClientStart entries (we defined ClientStart above)
+   object ContainsClientStart {
+      def unapply(trace: List[Record]): Option[ClientStart] =
+         trace.collectFirst { case cs@ClientStart(_, _) => cs }
+   }
+   
+   // the specification itself can be given as a collection of rules
+   // each rule's body is a Query[Any], which will be evaluated
+   // in order to determine if the rule holds
+   val rootRule: RootRule = RootRule(
+      // define a rule called r1
+      rule("r1") {
+         // Specification provides access to a pre-loaded set of traces,
+         // which are pairs of (trace identified, List[Record])
+         traces.quantifying("trace").forall {
+            // this quantification only applies to traces containing
+            // ClientStart; you can limit scope using any pattern you like
+            case (id, trace@ContainsClientStart(clientStart)) =>
+               // Query works with for-expressions, which are just
+               // combinations of flatMap and map method invocations
+               for {
+                  // record important info
+                  _ <- label("id")(id)
+                  _ <- label("clientStart")(clientStart)
+                  _ <- accept(trace.collect { case cs@ClientStart(_, _) => cs })
+                          // several helpers are provided for common use cases, like
+                          // expecting one of a certain thing
+                          .requireOne
+                  // arbitrarily complex logic can be nested to any depth
+                  _ <- exists("clientStop")(trace) {
+                     case clientStop@ClientStop() =>
+                        // assertions require human-readable descriptions,
+                        // to make sure errors contain some human-readable wording
+                        require("clientStop happens-after clientStart")(clientStart <-< clientStop)
+                  }
+               } yield ()
+         }
+      },
+   )
+}
+
+// Specification.checkRules(os.Path...) will check the ruleset defined
+// in Specification against the trace(s) provided, yielding an
+// inspectable result object
+```
+
+### Intended as plain-text format for distribution
+
+The interpretability of spec outputs relies on the specification code being accessible.
+For this, you can use [Ammonite](https://ammonite.io/Ammonite) for its scripting capabilities and provide complete readable specification scripts to students.
+
+To import the latest version in Ammonite in such a script, use the following [Magic Imports](https://ammonite.io/#MagicImports):
+```scala
+import $repo.`https://jitpack.io`
+import $ivy.`com.github.DistributedClocks:tracechecker:master-SNAPSHOT`
+```
+
+This relies on [JitPack](https://jitpack.io), a free service allowing Java and Scala projects to be directly imported from Github via Ivy.
+Note that the given imports track this repository's master branch, which may or may not be what you want.
+We're using it like this to avoid students having to change version numbers if we publish a bugfix mid-assignment.
