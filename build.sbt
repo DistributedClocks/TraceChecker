@@ -3,7 +3,7 @@ lazy val root = project
   .in(file("."))
   .settings(
     name := "tracechecker",
-    version := "0.1.0",
+    version := "0.1.0-SNAPSHOT",
     organization := "com.github.distributedclocks",
     scalaVersion := "2.13.7",
 

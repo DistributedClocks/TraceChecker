@@ -1,8 +1,9 @@
-import $repo.`https://jitpack.io`
-import $ivy.`com.github.DistributedClocks:tracechecker:master-SNAPSHOT`
+//import $repo.`https://jitpack.io`
+import $ivy.`com.github.DistributedClocks:tracechecker_2.13:0.1.0-SNAPSHOT`
 
 import com.github.distributedclocks.tracechecker._
 
+import java.io.PrintWriter
 import java.util.Base64
 
 sealed trait StateMoveMessage {
@@ -148,11 +149,11 @@ class Spec(expectedSeed: String) extends Specification[Record] {
     }
 
   override def rootRule: RootRule = RootRule(
-    multiRule("5% : GameStart is reported correctly", pointValue = 5)(
-      rule("GameStart appears exactly once", pointValue = 1) {
+    multiRule("[5%] GameStart is reported correctly", pointValue = 5)(
+      rule("GameStart appears exactly once", pointValue = 2.5) {
         call(theGameStart)
       },
-      rule("GameStart happens-before all other actions", pointValue = 1) {
+      rule("GameStart happens-before all other actions", pointValue = 2.5) {
         call(theGameStart).label("the game start").flatMap { gs =>
           call(theTrace).quantifying("record").forall {
             case rec if rec ne gs =>
@@ -167,13 +168,13 @@ class Spec(expectedSeed: String) extends Specification[Record] {
       },
     ),
 
-    multiRule("15%: Initializes game state correctly with the seed passed via command-line", pointValue = 10)(
-      rule(s"GameStart must contain the expected seed $expectedSeed", pointValue = 1) {
+    multiRule("[15%] Initializes game state correctly with the seed passed via command-line", pointValue = 15)(
+      rule(s"GameStart must contain the expected seed $expectedSeed", pointValue = 7.5) {
         call(theGameStart).label("gameStart").require(_ => s"the game start must have the seed $expectedSeed") { gs =>
           gs.seed.toString == expectedSeed
         }
       },
-      rule(s"The opening ClientMove and matching opening ServerMove are recorded", pointValue = 1) {
+      rule(s"The opening ClientMove and matching opening ServerMove are recorded", pointValue = 7.5) {
         for {
           cm <- call(theFirstClientMove).label("firstClientMove")
           sm <- call(theFirstServerMove).label("firstServerMove")
@@ -194,20 +195,20 @@ class Spec(expectedSeed: String) extends Specification[Record] {
       },
     ),
 
-    rule("20% Is able to make one valid move", pointValue = 20) {
+    rule("[20%] Is able to make one valid move", pointValue = 20) {
       call(theTrace).quantifying("clientMove").exists {
         case cm@ClientMove(_, moveRow, _) if moveRow >= 0 =>
           call(requireLegalOnReceive(cm))
       }
     },
 
-    multiRule("25% Plays to completion", pointValue = 25)(
-      rule("All moves are legal on receive", pointValue = 1) {
+    multiRule("[25%] Plays to completion", pointValue = 25)(
+      rule("All moves are legal on receive", pointValue = 12.5) {
         call(theTrace).quantifying("move").forall {
           case m: StateMoveMessage => call(requireLegalOnReceive(m))
         }
       },
-      rule("The final move has a game board with all 0s", pointValue = 1) {
+      rule("The final move has a game board with all 0s", pointValue = 12.5) {
         call(theLastMove).label("the last move")
           .flatMap {
             case StateMoveMessage(Some(boardStr), _, _) if getGameStateBytes(boardStr).forall(_ == 0) => accept
@@ -216,7 +217,7 @@ class Spec(expectedSeed: String) extends Specification[Record] {
       },
     ),
 
-    rule("5% GameComplete is recorded correctly", pointValue = 5) {
+    rule("[5%] GameComplete is recorded correctly", pointValue = 5) {
       for {
         gc <- call(theTrace)
           .map(_.collect { case gc: GameComplete => gc })
@@ -236,9 +237,9 @@ class Spec(expectedSeed: String) extends Specification[Record] {
 
 @main
 def a1spec(@arg(doc = "the seed passed to the client which produced the trace being checked, in decimal with no leading zeroes") expectedSeed: String,
-           @arg(doc = "path to the trace file to analyse. this file will the one you told the tracing server to generate, and should contain exactly one trace") traceFile: os.Path): Unit = {
+           @arg(doc = "path to the trace file to analyse. this file will the one you told the tracing server to generate, and should contain exactly one trace") traceFiles: os.Path*): Unit = {
   val spec = new Spec(expectedSeed = expectedSeed)
-  val results = spec.checkRules(traceFile)
+  val results = spec.checkRules(traceFiles:_*)
   if (results.success) {
     println("all checks passed!")
     println()
@@ -252,6 +253,10 @@ def a1spec(@arg(doc = "the seed passed to the client which produced the trace be
     println()
     println("details:")
     results.counterExamples().foreach(print)
-    sys.exit(1)
   }
+  val p = new PrintWriter("grade_out.log")
+  try {
+    p.println(results.grade)
+    results.dump().foreach(p.print)
+  } finally {p.close()}
 }

@@ -77,6 +77,8 @@ abstract class Specification[E <: Element : ElementParser : ClassTag] extends Qu
 object Specification {
   val checkMark: Str = Str("✓").overlay(Color.Green)
   val crossMark: Str = Str("❌").overlay(Color.Red)
+  val asciiCheckMark: String = "[o]"
+  val asciiCrossMark: String = "[x]"
 
   final case class RuleConfig(logName: String, queryState: QueryContext.State)
 
@@ -92,6 +94,7 @@ object Specification {
     def ruleList(indent: Int = 0): Iterator[Str]
     def counterExamples(prefix: String = "", indent: Int = 0): Iterator[Str]
     def grade: Double
+    def dump(indent: Int = 0): Iterator[String]
   }
 
   trait CommonRuleOps {
@@ -101,6 +104,9 @@ object Specification {
     def renderRuleListHeading(indent: Int, success: Boolean): Iterator[Str] =
       Iterator.fill(indent)(Str("  ")) ++
         Iterator[Str](if(success) checkMark else crossMark, " ", name, desc.map(desc => Str(s": $desc")).getOrElse(Str("")), "\n")
+
+    def renderRuleListAscii(indent: Int, success: Boolean): Iterator[String] =
+        Iterator[String](if(success) asciiCheckMark else asciiCrossMark, " ", "  " * indent, name, desc.getOrElse(""), "\n")
   }
 
   trait CommonMultiRuleOps {
@@ -134,6 +140,8 @@ object Specification {
           results.iterator.flatMap(_.counterExamples(prefix = prefix, indent = indent))
 
         override def grade: Double = calculateGrade(results)
+
+        override def dump(indent: Int): Iterator[String] = results.iterator.flatMap(_.dump(indent))
       }
     }
   }
@@ -209,6 +217,8 @@ object Specification {
           val pts = availablePts
           if(success) pts else 0
         }
+
+        override def dump(indent: Int): Iterator[String] = renderRuleListAscii(indent, success)
       }
     }
   }
@@ -238,6 +248,8 @@ object Specification {
           results.iterator.flatMap(_.counterExamples(prefix = s"$prefix$name -:- ", indent = indent))
 
         override def grade: Double = calculateGrade(results)
+
+        override def dump(indent: Int): Iterator[String] = renderRuleListAscii(indent, success) ++ results.iterator.flatMap(_.dump(indent+1))
       }
     }
   }
