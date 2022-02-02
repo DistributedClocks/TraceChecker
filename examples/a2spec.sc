@@ -164,14 +164,14 @@ class Spec(expectedSeed: String) extends Specification[Record] {
     ),
 
     multiRule("[25%] Nim server failures are detected by fcheck", pointValue = 25)(
-      rule("[10%] If NimServerFailed is recorded, then there's a NewNimServer happens before it with the identical address"){reject("")},
-      rule("[15%] NimServerFailed is recorded when there's a corresponding ServerFailed"){reject("")}
+      rule("[10%] If NimServerFailed is recorded, then there's a NewNimServer happens before it with the identical address", pointValue = 10){reject("")},
+      rule("[15%] NimServerFailed is recorded when there's a corresponding ServerFailed", pointValue = 15){reject("")}
     ),
 
     multiRule("[40%] Transparent nim server fail-over works", pointValue = 40)(
-      rule("[10%] NewNimServer recorded after NimServerFailed"){reject("")},
-      rule("[15%] For each NimServerFailed, GameResume is collected after the first ClientMoveReceive"){reject("")},
-      rule("[15%] The game progress normally, like A1"){reject("")}
+      rule("[10%] NewNimServer recorded after NimServerFailed", pointValue = 10){reject("")},
+      rule("[15%] For each NimServerFailed, GameResume is collected after the first ClientMoveReceive", pointValue = 15){reject("")},
+      rule("[15%] The game progress normally, like A1", pointValue = 15){reject("")}
     ),
 
     rule("[10%] Nim servers total failure handled properly", pointValue = 10){reject("")}
