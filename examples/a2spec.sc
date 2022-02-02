@@ -174,7 +174,10 @@ class Spec(expectedSeed: String) extends Specification[Record] {
       rule("[15%] The game progress normally, like A1", pointValue = 15){reject("")}
     ),
 
-    rule("[10%] Nim servers total failure handled properly", pointValue = 10){reject("")}
+    multiRule("[10%] Nim servers total failure handled properly", pointValue = 10)(
+      rule("[5%] Unique AllNimServersDown at the end GameComplete doesn't exist", pointValue = 5){reject("")},
+      rule("[5%] N NimServerFailed between the last ServerMoveReceive and AllNimServersDown", pointValue = 15){reject("")}
+    )
   )
 }
 
