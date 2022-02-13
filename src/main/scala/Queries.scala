@@ -133,7 +133,7 @@ trait Queries {
    * @param data the "set" of data over which to quantify
    * @param fn the "condition". Only elements that fn accepts will be considered.
    */
-  final def forall[T](name: String)(data: Iterable[T])(fn: PartialFunction[T,Query[Any]])(implicit positionInfo: PositionInfo): Query[Unit] =
+  final def forall[T](name: String)(data: IterableOnce[T])(fn: PartialFunction[T,Query[Any]])(implicit positionInfo: PositionInfo): Query[Unit] =
     Query { ctx =>
       data.iterator
         .foldLeft(None: Option[Reject]) { (acc, t) =>
@@ -159,7 +159,7 @@ trait Queries {
    * If an element is accepted by fn and passes fn(elem), it is considered proof by example and processing stops.
    * Otherwise, if all possible elements are exhausted, the query fails.
    */
-  final def exists[T](name: String)(data: Iterable[T])(fn: PartialFunction[T,Query[Any]])(implicit positionInfo: PositionInfo): Query[Unit] =
+  final def exists[T](name: String)(data: IterableOnce[T])(fn: PartialFunction[T,Query[Any]])(implicit positionInfo: PositionInfo): Query[Unit] =
     Query { ctx =>
       (data.foldLeft(Left(Nil): Either[List[T],Accept[Unit]]) { (acc, t) =>
         acc match {
