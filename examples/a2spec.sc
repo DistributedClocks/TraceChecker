@@ -231,7 +231,10 @@ class Spec(seed: String, N: Int) extends Specification[Record] {
         }
       },
       rule("[10%] A ClientMoveReceive is recorded after each ClientMove", pointValue = 10){
-        call(clientMove).quantifying("client move receive").forall { cm =>
+        call(clientMove)
+          .map(_.sorted(Element.VectorClockOrdering))
+          .map(l => l.splitAt(l.size-1)._1)
+          .quantifying("client move receive").forall { cm =>
             causalRelation.earliestSuccessors(cm) { case cmr : ClientMoveReceive => cmr }
               .label("the earliest successor of the ClientMove")
               .require(cmr => s"the ClientMove $cm should match ClientMoveReceive $cmr")(_.exists { cmr =>
