@@ -77,8 +77,8 @@ abstract class Specification[E <: Element : ElementParser : ClassTag] extends Qu
 object Specification {
   val checkMark: Str = Str("✓").overlay(Color.Green)
   val crossMark: Str = Str("❌").overlay(Color.Red)
-  val asciiCheckMark: String = "[o]"
-  val asciiCrossMark: String = "[x]"
+  val asciiCheckMark: String = "[x]"
+  val asciiCrossMark: String = "[ ]"
 
   final case class RuleConfig(logName: String, queryState: QueryContext.State)
 
