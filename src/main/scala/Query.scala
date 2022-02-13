@@ -85,6 +85,21 @@ abstract class Query[+T] { self =>
       }
     }
 
+  final def requireAtMostOne[U](implicit ev: T <:< Iterable[U], positionInfo: PositionInfo): Query[Option[U]] =
+    Query { ctx =>
+      self(ctx) match {
+        case Accept(value, ctx) =>
+          if (value.isEmpty) {
+            Accept(None, ctx)
+          } else if (value.size == 1) {
+            Accept(Some(value.head), ctx)
+          } else {
+            Reject("more than one value matched; see relevant values", ctx, value.toList, positionInfo = positionInfo)
+          }
+        case r@Reject(_, _, _, _) => r
+      }
+    }
+
   /**
    * Helper for asserting that a query should produce an empty collection.
    * Fails if the collection is non-empty, succeeds with a unit value otherwise.
@@ -123,7 +138,7 @@ abstract class Query[+T] { self =>
    * Helper for building logical quantifications out of queries producing collections.
    * Returns a Quantifying builder, which provides methods for building forall or exists quantifications.
    */
-  final def quantifying[E](name: String)(implicit ev: T <:< Iterable[E], positionInfo: PositionInfo): Query.Quantifying[T,E] =
+  final def quantifying[E](name: String)(implicit ev: T <:< IterableOnce[E], positionInfo: PositionInfo): Query.Quantifying[T,E] =
     new Query.Quantifying[T,E](name = name, query = self)
 
   /**
@@ -145,7 +160,7 @@ object Query {
    */
   def apply[T](fn: QueryContext => Result[T]): Query[T] = fn(_)
 
-  final class Quantifying[+T,E](name: String, query: Query[T])(implicit ev: T <:< Iterable[E], positionInfo: PositionInfo) {
+  final class Quantifying[+T,E](name: String, query: Query[T])(implicit ev: T <:< IterableOnce[E], positionInfo: PositionInfo) {
     /**
      * Short-cut for invoking Queries.forall.
      */
