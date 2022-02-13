@@ -38,7 +38,14 @@ final case class NewNimServer(nimServerAddr: String) extends Record
 final case class NimServerFailed(nimServerAddr: String) extends Record
 final case class AllNimServersDown() extends Record
 
-class Spec(expectedSeed: String) extends Specification[Record] {
+// server-side actions
+final case class ServerGameStart(gameState: Option[String], moveRow: Int, moveCount: Int, tracingServerAddr: String, token: String) extends Record with StateMoveMessage
+final case class ServerMove(gameState: Option[String], moveRow: Int, moveCount: Int, tracingServerAddr: String, token: String) extends Record with StateMoveMessage
+final case class ClientMoveReceive(gameState: Option[String], moveRow: Int, moveCount: Int, tracingServerAddr: String, token: String) extends Record with StateMoveMessage
+final case class GameResume(gameState: Option[String], moveRow: Int, moveCount: Int, tracingServerAddr: String, token: String) extends Record with StateMoveMessage
+final case class ServerFailed(serverAddr: String) extends Record
+
+class Spec(seed: String, N: Int) extends Specification[Record] {
   import Specification._
 
   val theTrace: Query[List[Record]] =
@@ -66,6 +73,7 @@ class Spec(expectedSeed: String) extends Specification[Record] {
         }
     }
 
+  // Inherited from A1
   val theGameStart: Query[GameStart] =
     call(theTrace)
       .map(_.collect { case gs: GameStart => gs })
@@ -107,7 +115,7 @@ class Spec(expectedSeed: String) extends Specification[Record] {
 
   def requireLegalOnReceive(m: StateMoveMessage): Query[Unit] =
     m match {
-      case ClientMove(None, -1, seed, _, _) if seed.toString == expectedSeed =>
+      case ClientMove(None, -1, s, _, _) if s.toString == seed =>
         accept // always legal on receive. we will try to figure out game begin semantics elsewhere
       case sm: ServerMoveReceive =>
         // we check that ServerMove happened in response to at least _something_ the client sent.
@@ -156,27 +164,179 @@ class Spec(expectedSeed: String) extends Specification[Record] {
         reject(s"the move did not fit any recognised pattern. maybe it's a checker bug or a corrupt trace?")
     }
 
+  // A2 helper functions
+  val theServerGameStart: Query[ServerGameStart] =
+    call(theTrace)
+      .map(_.collect { case sgs: ServerGameStart => sgs })
+      .requireOne
+
+  val ifGameComplete: Query[Option[GameComplete]] =
+    call(theTrace)
+      .map(_.collect { case gc: GameComplete => gc })
+      .requireAtMostOne
+
+  val ifAllNimServersDown: Query[Option[AllNimServersDown]] =
+    call(theTrace)
+      .map(_.collect { case allDown: AllNimServersDown => allDown })
+      .requireAtMostOne
+
+  // A total ordered trace where incomparable VCs are treated as equal
+  val theTotalOrderedTrace: Query[List[Record]] =
+    materialize {
+      call(theTrace).map(_.sorted(Element.VectorClockOrdering))
+    }
+
+  val clientMove: Query[List[ClientMove]] =
+    call(theTrace)
+      .map(_.collect { case cmr: ClientMove => cmr })
+      .requireSome
+
+  val serverMoveReceive: Query[List[ServerMoveReceive]] =
+    call(theTrace)
+      .map(_.collect { case sm: ServerMoveReceive => sm })
+      .requireSome
+
+  val newNimServer: Query[List[NewNimServer]] = {
+    materialize {
+      call(theTrace)
+        .map(_.collect { case nns: NewNimServer => nns })
+    }
+  }
+
+  val nimServerFailed: Query[List[NimServerFailed]] =
+    call(theTrace)
+      .map(_.collect { case nsf: NimServerFailed => nsf })
+
+  val serverFailed: Query[List[ServerFailed]] =
+    call(theTrace)
+      .map(_.collect { case sf: ServerFailed => sf })
+
+  val gameResume: Query[List[GameResume]] =
+    call(theTrace)
+      .map(_.collect { case gr: GameResume => gr })
+
+
   override def rootRule: RootRule = RootRule(
     multiRule("[25%] Distributed tracing works", pointValue = 25)(
-      rule("[5%] ServerGameStart is collected", pointValue = 5){reject("")},
-      rule("[10%] ClientMoveReceives are collected", pointValue = 10){reject("")},
-      rule("[10%] ServerMoves are collected", pointValue = 10){reject("")}
+      rule("[5%] ServerGameStart is recorded after the first ClientMove", pointValue = 5) {
+        call(theServerGameStart).flatMap { sgs =>
+          call(theTotalOrderedTrace).map(_.collectFirst { case cm : ClientMove => cm })
+            .map(_.toList)
+            .requireOne
+            .flatMap { cm =>
+              require("The first ClientMove happens-before ServerGameStart") {
+                cm <-< sgs
+              }
+            }
+        }
+      },
+      rule("[10%] A ClientMoveReceive is recorded after each ClientMove", pointValue = 10){
+        call(clientMove).quantifying("client move receive").forall { cm =>
+            causalRelation.earliestSuccessors(cm) { case cmr : ClientMoveReceive => cmr }
+              .label("the earliest successor of the ClientMove")
+              .require(cmr => s"the ClientMove $cm should match ClientMoveReceive $cmr")(_.exists { cmr =>
+                cmr.moveRow == cm.moveRow && cmr.moveCount == cmr.moveCount && cmr.gameState == cmr.gameState
+              })
+          }
+      },
+      rule("[10%] A ServerMoves is recorded before each ServerMoveReceive", pointValue = 10){
+        call(serverMoveReceive).quantifying("server move").forall { smr =>
+            causalRelation.latestPredecessors(smr) { case sm : ServerMove => sm }
+              .label("the latest predecessor of the ServerMoveReceive")
+              .require(sm => s"the ServerMoveReceive $smr should match ServerMove $sm") (_.exists { sm =>
+                smr.moveRow == sm.moveRow && smr.moveCount == sm.moveCount && smr.gameState == sm.gameState
+              })
+          }
+      }
     ),
 
     multiRule("[25%] Nim server failures are detected by fcheck", pointValue = 25)(
-      rule("[10%] If NimServerFailed is recorded, then there's a NewNimServer happens before it with the identical address", pointValue = 10){reject("")},
-      rule("[15%] NimServerFailed is recorded when there's a corresponding ServerFailed", pointValue = 15){reject("")}
+      rule("[10%] If NimServerFailed is recorded, then there's a NewNimServer happens before it with the identical address", pointValue = 10){
+        call(nimServerFailed).quantifying("NimServerFailed").forall { fail =>
+          call(newNimServer).quantifying("NewNimServer").exists { newServer =>
+            if (newServer.nimServerAddr == fail.nimServerAddr && newServer <-< fail) {
+              accept
+            } else {
+              reject("There must exist a corresponding NewNimServer for every NimServerFailed")
+            }
+          }
+        }
+      },
+      rule("[15%] NimServerFailed is recorded when there's a corresponding ServerFailed", pointValue = 15){
+        call(nimServerFailed).quantifying("NimServerFailed").forall { fail =>
+          call(newNimServer).quantifying("NewNimServer").exists { newServer =>
+            if (newServer.nimServerAddr == fail.nimServerAddr) {
+              accept
+            } else {
+              reject("There must exist a corresponding ServerFailed for every NimServerFailed")
+            }
+          }
+        }
+      }
     ),
 
     multiRule("[40%] Transparent nim server fail-over works", pointValue = 40)(
-      rule("[10%] NewNimServer recorded after NimServerFailed", pointValue = 10){reject("")},
-      rule("[15%] For each NimServerFailed, GameResume is collected after the first ClientMoveReceive", pointValue = 15){reject("")},
-      rule("[15%] The game progress normally, like A1", pointValue = 15){reject("")}
+      rule("[10%] When there is a GameComplete, NewNimServer recorded after NimServerFailed", pointValue = 10) {
+        call(ifGameComplete).quantifying("GameComplete").forall { _ =>
+          call(nimServerFailed).quantifying("NimServerFailed").forall { fail =>
+            call(newNimServer).quantifying("NewNimServer").exists { newServer =>
+              if (fail <-< newServer) {
+                accept
+              } else {
+                reject("There must be a subsequent NewNimServer after each NimServerFailed")
+              }
+            }
+          }
+        }
+      },
+      rule("[15%] When there is a GameComplete, GameResume recorded after NimServerFailed", pointValue = 15) {
+        call(ifGameComplete).quantifying("GameComplete").forall { _ =>
+          call(nimServerFailed).quantifying("NimServerFailed").forall { fail =>
+            call(gameResume).quantifying("GameResume").exists { resume =>
+              if (fail <-< resume) {
+                accept
+              } else {
+                reject("The game must resume after NimServerFailed")
+              }
+            }
+          }
+        }
+      },
+      rule("[15%] When thereis a GameComplete, the game progress normally, like A1", pointValue = 15) {
+        call(ifGameComplete).quantifying("GameComplete").forall { _ =>
+          call(theTrace).quantifying("move").forall {
+            case m: StateMoveMessage => call(requireLegalOnReceive(m))
+          }
+        }
+      }
     ),
 
     multiRule("[10%] Nim servers total failure handled properly", pointValue = 10)(
-      rule("[5%] Unique AllNimServersDown at the end GameComplete doesn't exist", pointValue = 5){reject("")},
-      rule("[5%] N NimServerFailed between the last ServerMoveReceive and AllNimServersDown", pointValue = 15){reject("")}
+      rule("[5%] If AllNimServersDown is recorded, it only appear once and GameComplete does not exist", pointValue = 5) {
+        call(ifAllNimServersDown).quantifying("AllNimServersDown").forall { _ =>
+          call(ifGameComplete).quantifying("GameComplete").forall { _ =>
+            reject("GameComplete must not co-exist with AllNimServersDown")
+          }
+        }
+      },
+      rule("[5%] N NimServerFailed between the last ServerMoveReceive and AllNimServersDown", pointValue = 5){
+        call(ifAllNimServersDown).quantifying("AllNimServersDown").forall { _ =>
+          call(theTotalOrderedTrace).map { trace =>
+            val idx = trace.lastIndexWhere( rc => rc.isInstanceOf[ServerMoveReceive] )
+            if (idx == -1) {
+              trace
+            } else {
+              trace.splitAt(idx)._2
+            }
+          }.require(trace => s"The (sub)trace must have exactly N NimServerFailed actions.\n(sub)trace: $trace") { trace =>
+            val c = trace.count {
+              case _: NimServerFailed => true
+              case _ => false
+            }
+            c == N
+          }
+        }
+      }
     )
   )
 }
@@ -186,9 +346,10 @@ class Spec(expectedSeed: String) extends Specification[Record] {
 @
 
 @main
-def a1spec(@arg(doc = "the seed passed to the client which produced the trace being checked, in decimal with no leading zeroes") expectedSeed: String,
+def a2spec(@arg(doc = "the seed passed to the client which produced the trace being checked, in decimal with no leading zeroes") seed: String,
+           @arg(doc = "the seed passed to the client which produced the trace being checked, in decimal with no leading zeroes") n: Int,
            @arg(doc = "path to the trace file to analyse. this file will the one you told the tracing server to generate, and should contain exactly one trace") traceFiles: os.Path*): Unit = {
-  val spec = new Spec(expectedSeed = expectedSeed)
+  val spec = new Spec(seed = seed, N = n)
   val results = spec.checkRules(traceFiles:_*)
   if (results.success) {
     println("all checks passed!")
