@@ -12,11 +12,14 @@ sealed trait StateMoveMessage {
   val moveCount: Int
   val tracingServerAddr: String
   // FIXME: the type of token may need to change
-  val token: String
+  val token: Option[String]
 }
 
 def getGameStateBytes(gameState: String): Array[Byte] =
   Base64.getDecoder.decode(gameState)
+
+def gameStatePp(gameState: String): List[Int] =
+  getGameStateBytes(gameState).map(b => b.toInt).toList
 
 object StateMoveMessage {
   def unapply(candidate: Any): Option[(Option[String],Int,Int)] =
@@ -27,10 +30,36 @@ object StateMoveMessage {
     }
 }
 
-sealed abstract class Record extends Element
+sealed abstract class Record extends Element {
+  override def toString: String = {
+    s"[$lineNumber] $productPrefix(${
+      (productElementNames zip productIterator)
+        .map {
+          case name -> (value: Option[String]) if name == "gameState" =>
+            val gameState =
+              if (value.isDefined) {
+                gameStatePp(value.get)
+              } else {
+                value.toString
+              }
+            s"$name = $gameState"
+          case name -> value => s"$name = $value"
+        }
+        .mkString(", ")
+    })@$tracerIdentity{${
+      vectorClock
+        .keysIterator
+        .toArray
+        .sortInPlace()
+        .iterator
+        .map(key => s"$key -> ${vectorClock(key)}")
+        .mkString(", ")
+    }}#$traceId"
+  }
+}
 final case class GameStart(seed: Int) extends Record
-final case class ClientMove(gameState: Option[String], moveRow: Int, moveCount: Int, tracingServerAddr: String, token: String) extends Record with StateMoveMessage
-final case class ServerMoveReceive(gameState: Option[String], moveRow: Int, moveCount: Int, tracingServerAddr: String, token: String) extends Record with StateMoveMessage
+final case class ClientMove(gameState: Option[String], moveRow: Int, moveCount: Int, tracingServerAddr: String, token: Option[String]) extends Record with StateMoveMessage
+final case class ServerMoveReceive(gameState: Option[String], moveRow: Int, moveCount: Int, tracingServerAddr: String, token: Option[String]) extends Record with StateMoveMessage
 final case class GameComplete(winner: String) extends Record
 
 // new actions in A2
@@ -39,10 +68,10 @@ final case class NimServerFailed(nimServerAddr: String) extends Record
 final case class AllNimServersDown() extends Record
 
 // server-side actions
-final case class ServerGameStart(gameState: Option[String], moveRow: Int, moveCount: Int, tracingServerAddr: String, token: String) extends Record with StateMoveMessage
-final case class ServerMove(gameState: Option[String], moveRow: Int, moveCount: Int, tracingServerAddr: String, token: String) extends Record with StateMoveMessage
-final case class ClientMoveReceive(gameState: Option[String], moveRow: Int, moveCount: Int, tracingServerAddr: String, token: String) extends Record with StateMoveMessage
-final case class GameResume(gameState: Option[String], moveRow: Int, moveCount: Int, tracingServerAddr: String, token: String) extends Record with StateMoveMessage
+final case class ServerGameStart(gameState: Option[String], moveRow: Int, moveCount: Int, tracingServerAddr: String, token: Option[String]) extends Record with StateMoveMessage
+final case class ServerMove(gameState: Option[String], moveRow: Int, moveCount: Int, tracingServerAddr: String, token: Option[String]) extends Record with StateMoveMessage
+final case class ClientMoveReceive(gameState: Option[String], moveRow: Int, moveCount: Int, tracingServerAddr: String, token: Option[String]) extends Record with StateMoveMessage
+final case class GameResume(gameState: Option[String], moveRow: Int, moveCount: Int, tracingServerAddr: String, token: Option[String]) extends Record with StateMoveMessage
 final case class ServerFailed(serverAddr: String) extends Record
 
 class Spec(seed: String, N: Int) extends Specification[Record] {
@@ -73,30 +102,60 @@ class Spec(seed: String, N: Int) extends Specification[Record] {
         }
     }
 
-  // Inherited from A1
-  val theGameStart: Query[GameStart] =
+  // A2 helper functions
+  val theServerGameStart: Query[ServerGameStart] =
     call(theTrace)
-      .map(_.collect { case gs: GameStart => gs })
+      .map(_.collect { case sgs: ServerGameStart => sgs })
       .requireOne
 
-  val theFirstClientMove: Query[ClientMove] =
-    call(theTraceInOrder)
-      .map(_.collectFirst { case cm: ClientMove => cm }.toList)
-      .requireOne
+  val ifGameComplete: Query[Option[GameComplete]] =
+    call(theTrace)
+      .map(_.collect { case gc: GameComplete => gc })
+      .requireAtMostOne
 
-  val theFirstServerMove: Query[ServerMoveReceive] =
-    call(theTraceInOrder)
-      .map(_.collectFirst { case sm: ServerMoveReceive => sm }.toList)
-      .requireOne
+  val ifAllNimServersDown: Query[Option[AllNimServersDown]] =
+    call(theTrace)
+      .map(_.collect { case allDown: AllNimServersDown => allDown })
+      .requireAtMostOne
 
-  val theLastMove: Query[StateMoveMessage] =
-    call(theTraceInOrder)
-      .map(_.view.collect { case m: StateMoveMessage => m }.lastOption.toList)
-      .requireOne
+  // A total ordered trace where incomparable VCs are treated as equal
+  val theTotalOrderedTrace: Query[List[Record]] =
+    materialize {
+      call(theTrace).map(_.sorted(Element.VectorClockOrdering))
+    }
+
+  val clientMove: Query[List[ClientMove]] =
+    call(theTrace)
+      .map(_.collect { case cmr: ClientMove => cmr })
+      .requireSome
+
+  val serverMoveReceive: Query[List[ServerMoveReceive]] =
+    call(theTrace)
+      .map(_.collect { case sm: ServerMoveReceive => sm })
+      .requireSome
+
+  val newNimServer: Query[List[NewNimServer]] = {
+    materialize {
+      call(theTrace)
+        .map(_.collect { case nns: NewNimServer => nns })
+    }
+  }
+
+  val nimServerFailed: Query[List[NimServerFailed]] =
+    call(theTrace)
+      .map(_.collect { case nsf: NimServerFailed => nsf })
+
+  val serverFailed: Query[List[ServerFailed]] =
+    call(theTrace)
+      .map(_.collect { case sf: ServerFailed => sf })
+
+  val gameResume: Query[List[GameResume]] =
+    call(theTrace)
+      .map(_.collect { case gr: GameResume => gr })
 
   val duplicatedMsgs: Query[Set[ById[ServerMoveReceive]]] =
     materialize {
-      call(theTraceInOrder)
+      call(theTotalOrderedTrace)
         .map(_.collect {
           case m: ServerMoveReceive => m
         })
@@ -164,56 +223,6 @@ class Spec(seed: String, N: Int) extends Specification[Record] {
         reject(s"the move did not fit any recognised pattern. maybe it's a checker bug or a corrupt trace?")
     }
 
-  // A2 helper functions
-  val theServerGameStart: Query[ServerGameStart] =
-    call(theTrace)
-      .map(_.collect { case sgs: ServerGameStart => sgs })
-      .requireOne
-
-  val ifGameComplete: Query[Option[GameComplete]] =
-    call(theTrace)
-      .map(_.collect { case gc: GameComplete => gc })
-      .requireAtMostOne
-
-  val ifAllNimServersDown: Query[Option[AllNimServersDown]] =
-    call(theTrace)
-      .map(_.collect { case allDown: AllNimServersDown => allDown })
-      .requireAtMostOne
-
-  // A total ordered trace where incomparable VCs are treated as equal
-  val theTotalOrderedTrace: Query[List[Record]] =
-    materialize {
-      call(theTrace).map(_.sorted(Element.VectorClockOrdering))
-    }
-
-  val clientMove: Query[List[ClientMove]] =
-    call(theTrace)
-      .map(_.collect { case cmr: ClientMove => cmr })
-      .requireSome
-
-  val serverMoveReceive: Query[List[ServerMoveReceive]] =
-    call(theTrace)
-      .map(_.collect { case sm: ServerMoveReceive => sm })
-      .requireSome
-
-  val newNimServer: Query[List[NewNimServer]] = {
-    materialize {
-      call(theTrace)
-        .map(_.collect { case nns: NewNimServer => nns })
-    }
-  }
-
-  val nimServerFailed: Query[List[NimServerFailed]] =
-    call(theTrace)
-      .map(_.collect { case nsf: NimServerFailed => nsf })
-
-  val serverFailed: Query[List[ServerFailed]] =
-    call(theTrace)
-      .map(_.collect { case sf: ServerFailed => sf })
-
-  val gameResume: Query[List[GameResume]] =
-    call(theTrace)
-      .map(_.collect { case gr: GameResume => gr })
 
 
   override def rootRule: RootRule = RootRule(
@@ -306,10 +315,19 @@ class Spec(seed: String, N: Int) extends Specification[Record] {
         }
       },
       rule("[15%] When thereis a GameComplete, the game progress normally, like A1", pointValue = 15) {
-        call(ifGameComplete).quantifying("GameComplete").forall { _ =>
-          call(theTrace).quantifying("move").forall {
-            case m: StateMoveMessage => call(requireLegalOnReceive(m))
-          }
+        call(ifGameComplete).quantifying("GameComplete").forall { gc =>
+          for {
+            _ <- call(theTrace).quantifying("move").forall {
+              case m: ClientMove => call(requireLegalOnReceive(m))
+              case m: ServerMoveReceive => call(requireLegalOnReceive(m))
+            }
+            _ <- causalRelation.latestPredecessors(gc) { case cm: ClientMove => cm}
+              .requireOne
+              .flatMap {
+                case StateMoveMessage(Some(boardStr), _, _) if getGameStateBytes(boardStr).forall(_ == 0) => accept
+                case _ => reject(s"the last move did not contain a board with all 0s")
+              }
+          } yield ()
         }
       }
     ),
