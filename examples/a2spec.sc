@@ -72,8 +72,7 @@ final case class ServerGameStart(gameState: Option[String], moveRow: Int, moveCo
 final case class ServerMove(gameState: Option[String], moveRow: Int, moveCount: Int, tracingServerAddr: String, token: Option[String]) extends Record with StateMoveMessage
 final case class ClientMoveReceive(gameState: Option[String], moveRow: Int, moveCount: Int, tracingServerAddr: String, token: Option[String]) extends Record with StateMoveMessage
 final case class GameResume(gameState: Option[String], moveRow: Int, moveCount: Int, tracingServerAddr: String, token: Option[String]) extends Record with StateMoveMessage
-//final case class ServerFailed(serverAddress: String) extends Record
-final case class ServerFailed() extends Record
+final case class ServerFailed(serverAddress: String) extends Record
 
 class Spec(seed: String, N: Int) extends Specification[Record] {
   import Specification._
@@ -291,10 +290,9 @@ class Spec(seed: String, N: Int) extends Specification[Record] {
       rule("[15%] NimServerFailed is recorded when there is a corresponding ServerFailed", pointValue = 15){
         call(nimServerFailed).quantifying("NimServerFailed").forall { fail =>
           call(serverFailed).quantifying("ServerFailed").exists { sf =>
-//            val port1 = sf.serverAddress.split(':')(1)
-//            val port2 = fail.nimServerAddress.split(':')(1)
-//            if (port1 == port2) {
-            if (true) {
+            val port1 = sf.serverAddress.split(':')(1)
+            val port2 = fail.nimServerAddress.split(':')(1)
+            if (port1 == port2) {
               accept
             } else {
               reject("There must exist a corresponding ServerFailed for every NimServerFailed")
