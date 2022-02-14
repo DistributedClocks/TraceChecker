@@ -253,4 +253,6 @@ object Specification {
       }
     }
   }
+
+  // TODO: add another class called EitherRule
 }
