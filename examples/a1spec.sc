@@ -30,7 +30,7 @@ final case class ClientMove(gameState: Option[String], moveRow: Int, moveCount: 
 final case class ServerMoveReceive(gameState: Option[String], moveRow: Int, moveCount: Int) extends Record with StateMoveMessage
 final case class GameComplete(winner: String) extends Record
 
-class Spec(expectedSeed: String) extends Specification[Record] {
+class Spec(expectedSeed: Seq[String]) extends Specification[Record] {
   import Specification._
 
   val theTrace: Query[List[Record]] =
@@ -99,7 +99,7 @@ class Spec(expectedSeed: String) extends Specification[Record] {
 
   def requireLegalOnReceive(m: StateMoveMessage): Query[Unit] =
     m match {
-      case ClientMove(None, -1, seed) if seed.toString == expectedSeed =>
+      case ClientMove(None, -1, seed) if expectedSeed.contains(seed.toString) =>
         accept // always legal on receive. we will try to figure out game begin semantics elsewhere
       case sm: ServerMoveReceive =>
         // we check that ServerMove happened in response to at least _something_ the client sent.
@@ -171,7 +171,7 @@ class Spec(expectedSeed: String) extends Specification[Record] {
     multiRule("[15%] Initializes game state correctly with the seed passed via command-line", pointValue = 15)(
       rule(s"GameStart must contain the expected seed $expectedSeed", pointValue = 7.5) {
         call(theGameStart).label("gameStart").require(_ => s"the game start must have the seed $expectedSeed") { gs =>
-          gs.seed.toString == expectedSeed
+          expectedSeed.contains(gs.seed.toString)
         }
       },
       rule(s"The opening ClientMove and matching opening ServerMove are recorded", pointValue = 7.5) {
@@ -183,12 +183,12 @@ class Spec(expectedSeed: String) extends Specification[Record] {
           }
           _ <- require("first client move integrity") {
             cm.moveRow == -1 &&
-              cm.moveCount.toString == expectedSeed &&
+              expectedSeed.contains(cm.moveCount.toString) &&
               cm.gameState.isEmpty
           }
           _ <- require("first server move integrity") {
             sm.moveRow == -1 &&
-              sm.moveCount.toString == expectedSeed &&
+              expectedSeed.contains(sm.moveCount.toString) &&
               sm.gameState.nonEmpty
           }
         } yield ()
@@ -236,9 +236,11 @@ class Spec(expectedSeed: String) extends Specification[Record] {
 @
 
 @main
-def a1spec(@arg(doc = "the seed passed to the client which produced the trace being checked, in decimal with no leading zeroes") expectedSeed: String,
-           @arg(doc = "path to the trace file to analyse. this file will the one you told the tracing server to generate, and should contain exactly one trace") traceFiles: os.Path*): Unit = {
-  val spec = new Spec(expectedSeed = expectedSeed)
+def a1spec(@arg(doc = "path to the trace file to analyse. this file will the one you told the tracing server to generate, and should contain exactly one trace") traceFiles: os.Path*): Unit = {
+  val seeds = traceFiles.map { p =>
+    p.toIO.getName.stripSuffix(".log").split("output")(1)
+  }
+  val spec = new Spec(expectedSeed = seeds)
   val results = spec.checkRules(traceFiles:_*)
   if (results.success) {
     println("all checks passed!")

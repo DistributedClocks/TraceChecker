@@ -422,6 +422,8 @@ def a2spec(@arg(doc = "the seed passed to the client which produced the trace be
     println("details:")
     results.counterExamples().foreach(print)
   }
+  println("Score: " + results.grade)
+  results.dump().foreach(print)
   val p = new PrintWriter("grade_out.log")
   try {
     p.println(results.grade)
