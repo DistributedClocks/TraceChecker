@@ -13,61 +13,61 @@ sealed trait STraceAction
 sealed trait PTraceAction
 sealed trait GTraceAction
 
-// category of the components
+// category of the chained-kvs components
 sealed trait ServerOp
 sealed trait KvslibOp
 sealed trait CoordOp
 
 sealed abstract class Record extends Element
 // server-related actions
-final case class ServerStart(serverId: Int) extends Record with ServerOp
-final case class ServerJoining(serverId: Int) extends Record with ServerOp
-final case class NextServerJoining(nextServerId: Int) extends Record with ServerOp
-final case class NewJoinedSuccessor(nextServerId: Int) extends Record with ServerOp
-final case class ServerJoined(serverId: Int) extends Record with ServerOp
-final case class ServerFailedRecvd(failedServerId: Int) extends Record with ServerOp
-final case class NewFailoverSuccessor(newNextServerId: Int) extends Record with ServerOp
-final case class NewFailoverPredecessor(newPrevServerId: Int) extends Record with ServerOp
-final case class ServerFailHandled(FailServerId: Int) extends Record with ServerOp
-final case class PutRecvd(clientId: String, opId: Long, key: String, value: String) extends Record with ServerOp
-final case class PutOrdered(clientId: String, opId: Long, gId: Long, key: String, value: String) extends Record with ServerOp
-final case class PutFwd(clientId: String, opId: Long, gId: Long, key: String, value: String) extends Record with ServerOp
-final case class PutFwdRecvd(clientId: String, opId: Long, gId: Long, key: String, value: String) extends Record with ServerOp
-final case class PutResult(clientId: String, opId: Long, gId: Long, key: String, value: String) extends Record with ServerOp
-final case class GetRecvd(clientId: String, opId: Long, key: String) extends Record with ServerOp
-final case class GetOrdered(clientId: String, opId: Long, gId: Long, key: String) extends Record with ServerOp
-final case class GetResult(clientId: String, opId: Long, gId: Long, key: String, value: String) extends Record with ServerOp
+final case class ServerStart(serverId: Int) extends Record with ServerOp with STraceAction
+final case class ServerJoining(serverId: Int) extends Record with ServerOp with STraceAction
+final case class NextServerJoining(nextServerId: Int) extends Record with ServerOp with STraceAction
+final case class NewJoinedSuccessor(nextServerId: Int) extends Record with ServerOp with STraceAction
+final case class ServerJoined(serverId: Int) extends Record with ServerOp with STraceAction
+final case class ServerFailedRecvd(failedServerId: Int) extends Record with ServerOp with CTraceAction
+final case class NewFailoverSuccessor(newNextServerId: Int) extends Record with ServerOp with CTraceAction
+final case class NewFailoverPredecessor(newPrevServerId: Int) extends Record with ServerOp with CTraceAction
+final case class ServerFailHandled(FailServerId: Int) extends Record with ServerOp with CTraceAction
+final case class PutRecvd(clientId: String, opId: Long, key: String, value: String) extends Record with ServerOp with PTraceAction
+final case class PutOrdered(clientId: String, opId: Long, gId: Long, key: String, value: String) extends Record with ServerOp with PTraceAction
+final case class PutFwd(clientId: String, opId: Long, gId: Long, key: String, value: String) extends Record with ServerOp with PTraceAction
+final case class PutFwdRecvd(clientId: String, opId: Long, gId: Long, key: String, value: String) extends Record with ServerOp with PTraceAction
+final case class PutResult(clientId: String, opId: Long, gId: Long, key: String, value: String) extends Record with ServerOp with PTraceAction
+final case class GetRecvd(clientId: String, opId: Long, key: String) extends Record with ServerOp with GTraceAction
+final case class GetOrdered(clientId: String, opId: Long, gId: Long, key: String) extends Record with ServerOp with GTraceAction
+final case class GetResult(clientId: String, opId: Long, gId: Long, key: String, value: String) extends Record with ServerOp with GTraceAction
 
 // coord-related actions
-final case class CoordStart() extends Record with CoordOp
-final case class ServerFail(serverId: Int) extends Record with CoordOp
-final case class ServerFailHandledRecvd(failedServerId: Int, adjacentServerId: Int) extends Record with CoordOp
-final case class NewChain(chain: String) extends Record with CoordOp
-final case class AllServersJoined() extends Record with CoordOp
-final case class HeadReqRecvd(clientId: String) extends Record with CoordOp
-final case class HeadRes(clientId: String, serverId: Int) extends Record with CoordOp
-final case class TailReqRecvd(clientId: String) extends Record with CoordOp
-final case class TailRes(clientId: String, serverId: Int) extends Record with CoordOp
-final case class ServerJoiningRecvd(serverId: Int) extends Record with CoordOp
-final case class ServerJoinedRecvd(serverId: Int) extends Record with CoordOp
+final case class CoordStart() extends Record with CoordOp with CTraceAction
+final case class ServerFail(serverId: Int) extends Record with CoordOp with CTraceAction
+final case class ServerFailHandledRecvd(failedServerId: Int, adjacentServerId: Int) extends Record with CoordOp with CTraceAction
+final case class NewChain(chain: String) extends Record with CoordOp with CTraceAction
+final case class AllServersJoined() extends Record with CoordOp with CTraceAction
+final case class HeadReqRecvd(clientId: String) extends Record with CoordOp with KTraceAction
+final case class HeadRes(clientId: String, serverId: Int) extends Record with CoordOp with KTraceAction
+final case class TailReqRecvd(clientId: String) extends Record with CoordOp with KTraceAction
+final case class TailRes(clientId: String, serverId: Int) extends Record with CoordOp with KTraceAction
+final case class ServerJoiningRecvd(serverId: Int) extends Record with CoordOp with STraceAction
+final case class ServerJoinedRecvd(serverId: Int) extends Record with CoordOp with STraceAction
 
 // kvslib-related actions
-final case class KvslibStart(clientId: Int) extends Record with KvslibOp
-final case class KvslibStop(clientId: Int) extends Record with KvslibOp
-final case class Put(clientId: String, opId: Long, key: String, value: String) extends Record with KvslibOp
-final case class PutResultRecvd(opId: Long, gId: Long, key: String) extends Record with KvslibOp
-final case class Get(clientId: String, opId: Long, key: String) extends Record with KvslibOp
-final case class GetResultRecvd(opId: Long, gId: Long, key: String, value: String) extends Record with KvslibOp
-final case class HeadReq(clientId: String) extends Record with KvslibOp
-final case class HeadResRecvd(clientId: String, serverId: Int) extends Record with KvslibOp
-final case class TailReq(clientId: String) extends Record with KvslibOp
-final case class TailResRecvd(clientId: String, serverId: Int) extends Record with KvslibOp
+final case class KvslibStart(clientId: Int) extends Record with KvslibOp with KTraceAction
+final case class KvslibStop(clientId: Int) extends Record with KvslibOp with KTraceAction
+final case class HeadReq(clientId: String) extends Record with KvslibOp with KTraceAction
+final case class HeadResRecvd(clientId: String, serverId: Int) extends Record with KvslibOp with KTraceAction
+final case class TailReq(clientId: String) extends Record with KvslibOp with KTraceAction
+final case class TailResRecvd(clientId: String, serverId: Int) extends Record with KvslibOp with KTraceAction
+final case class Put(clientId: String, opId: Long, key: String, value: String) extends Record with KvslibOp with PTraceAction
+final case class PutResultRecvd(opId: Long, gId: Long, key: String) extends Record with KvslibOp with PTraceAction
+final case class Get(clientId: String, opId: Long, key: String) extends Record with KvslibOp with GTraceAction
+final case class GetResultRecvd(opId: Long, gId: Long, key: String, value: String) extends Record with KvslibOp with GTraceAction
 
-def getGameStateBytes(gameState: String): Array[Byte] =
-  Base64.getDecoder.decode(gameState)
+def decodeChain(chain: String): Array[Byte] =
+  Base64.getDecoder.decode(chain)
 
-def gameStatePp(gameState: String): List[Int] =
-  getGameStateBytes(gameState).map(b => b.toInt).toList
+def chainPp(gameState: String): List[Int] =
+  decodeChain(gameState).map(b => b.toInt).toList
 
 class Spec() extends Specification[Record] {
   import Specification._
