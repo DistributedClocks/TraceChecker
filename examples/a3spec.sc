@@ -469,18 +469,42 @@ class Spec(N: Int) extends Specification[Record] {
     ),
 
     multiRule("Tail Server Requests", pointValue = 4)(
-      rule("", pointValue = 1) {
-        accept
+      rule("The number of TailReq(C) and TailReqRecvd(C) must be identical", pointValue = 1) {
+        for {
+          trs <- call(tailReq).label("all TailReq")
+          trrs <- call(tailReqRecvd).label("all TailReqRecvd")
+          _ <- if (trs.size == trrs.size) accept else reject("Different number of TailReq and TailReqRecvd")
+        } yield ()
       },
-      rule("", pointValue = 1) {
-        accept
+      rule("TailReq(C) must happen before TailReqRecvd(C)", pointValue = 1) {
+        call(tailReq).quantifying("all TailReq").forall { treq =>
+          for {
+            recvd <- call(tailReqRecvd).map(_.find(_.clientId == treq.clientId))
+            _ <- recvd match {
+              case Some(r) => if (treq <-< r) accept else reject("TailReq does not happen before TailReqRecvd")
+              case None => reject("Cannot find the corresponding TailReqRecvd")
+            }
+          } yield ()
+        }
       },
-      rule("", pointValue = 1) {
-        accept
+      rule("The number of TailRes(C) and TailResRecvd(C) must be identical", pointValue = 1) {
+        for {
+          trs <- call(tailRes).label("all TailRes")
+          trrs <- call(tailResRecvd).label("all TailResRecvd")
+          _ <- if (trs.size == trrs.size) accept else reject("Different number of TailRes and TailResRecvd")
+        } yield ()
       },
-      rule("", pointValue = 1) {
-        accept
-      }
+      rule("TailRes(C) must happen before TailResRecvd(C)", pointValue = 1) {
+        call(tailRes).quantifying("all TailRes").forall { treq =>
+          for {
+            recvd <- call(tailResRecvd).map(_.find(_.clientId == treq.clientId))
+            _ <- recvd match {
+              case Some(r) => if (treq <-< r) accept else reject("TailRes does not happen before TailResRecvd")
+              case None => reject("Cannot find the corresponding TailResRecvd")
+            }
+          } yield ()
+        }
+      },
     ),
 
     multiRule("Put Handling", pointValue = 2)(
