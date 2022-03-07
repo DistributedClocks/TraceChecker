@@ -27,6 +27,14 @@ sealed trait FailoverOp {
   val serverId: Int
 }
 
+sealed trait GIdOp {
+  val gId: Long
+}
+
+object GIdOrdering extends Ordering[GIdOp] {
+  override def compare(x: GIdOp, y: GIdOp): Int = x.gId.compareTo(y.gId)
+}
+
 sealed abstract class Record extends Element
 // server-related actions
 final case class ServerStart(serverId: Int) extends Record with ServerOp with STraceAction
@@ -72,7 +80,7 @@ final case class HeadResRecvd(clientId: String, serverId: Int) extends Record wi
 final case class TailReq(clientId: String) extends Record with KvslibOp with KTraceAction with ClientIdOp
 final case class TailResRecvd(clientId: String, serverId: Int) extends Record with KvslibOp with KTraceAction with ClientIdOp
 final case class Put(clientId: String, opId: Long, key: String, value: String) extends Record with KvslibOp with PTraceAction with ClientIdOp
-final case class PutResultRecvd(opId: Long, gId: Long, key: String) extends Record with KvslibOp with PTraceAction
+final case class PutResultRecvd(opId: Long, gId: Long, key: String) extends Record with KvslibOp with PTraceAction with GIdOp
 final case class Get(clientId: String, opId: Long, key: String) extends Record with KvslibOp with GTraceAction with ClientIdOp
 final case class GetResultRecvd(opId: Long, gId: Long, key: String, value: String) extends Record with KvslibOp with GTraceAction
 
@@ -514,7 +522,6 @@ class Spec(N: Int) extends Specification[Record] {
     ),
 
     multiRule("Put Handling", pointValue = 2)(
-      // TODO: this rule does not exactly correspond to spec
       rule("Put(C) must be preceded by HeadResRecvd(C,S)", pointValue = 1) {
         call(puts).quantifying("all Puts").forall { p =>
           call(headResRecvd).quantifying("exists headResRecvd").exists { hrr =>
@@ -560,7 +567,6 @@ class Spec(N: Int) extends Specification[Record] {
     ),
 
     multiRule("Get Handling", pointValue = 2)(
-      // TODO: this rule does not exactly correspond to spec
       rule("Get(C) must be preceded by TailResRecvd(C,S)", pointValue = 1) {
         call(gets).quantifying("all Gets").forall { g =>
           call(tailResRecvd).quantifying("exists tailResRecvd").exists { trr =>
@@ -609,7 +615,13 @@ class Spec(N: Int) extends Specification[Record] {
 
     multiRule("Get Before Any Put Data Consistency", pointValue = 1)(
       rule("Get with no preceding Put should return empty string", pointValue = 1) {
-        accept
+        for {
+          earliestPutResRecvd <- putResultRecvd.map(_.sorted(GIdOrdering).head)
+          _ = call(getResultRecvd).quantifying("GetResultRecvd").forall {
+            case gresRecvd if gresRecvd.gId < earliestPutResRecvd.gId && gresRecvd.value != "" =>
+              reject("GetResultRecvd with not preceding PutResultRecvd has non-empty value")
+          }
+        } yield ()
       }
     ),
 
