@@ -71,8 +71,10 @@ final case class GetResultRecvd(opId: Long, gId: Long, key: String, value: Strin
 def decodeChain(chain: String): Array[Byte] =
   Base64.getDecoder.decode(chain)
 
-def chainPp(gameState: String): List[Int] =
-  decodeChain(gameState).map(b => b.toInt).toList
+def chainPp(chain: String): List[Int] =
+  decodeChain(chain).map(b => b.toInt).toList
+
+def chainContains(chain: String, serverId: Int): Boolean = chainPp(chain).contains(serverId)
 
 class Spec(N: Int) extends Specification[Record] {
   import Specification._
@@ -136,6 +138,30 @@ class Spec(N: Int) extends Specification[Record] {
 
   val opsWithClientId: Query[List[Record with ClientIdOp]] =
     materialize{ call(elements).map(_.collect{ case a: ClientIdOp => a }) }
+
+  val serverJoiningRecvd: Query[List[ServerJoiningRecvd]] =
+    materialize{ call(elements).map(_.collect{case a: ServerJoiningRecvd => a}) }
+
+  val nextServerJoining: Query[List[NextServerJoining]] =
+    materialize{ call(elements).map(_.collect{case a: NextServerJoining => a}) }
+
+  val newJoinedSuccessor: Query[List[NewJoinedSuccessor]] =
+    materialize{ call(elements).map(_.collect{case a: NewJoinedSuccessor => a}) }
+
+  val serverJoined: Query[List[ServerJoined]] =
+    materialize{ call(elements).map(_.collect{case a: ServerJoined => a}) }
+
+  val serverJoinedRecvd: Query[List[ServerJoinedRecvd]] =
+    materialize{ call(elements).map(_.collect{case a: ServerJoinedRecvd => a}) }
+
+  val newChain: Query[List[NewChain]] =
+    materialize{ call(elements).map(_.collect{case a: NewChain => a}) }
+
+  val putRecvd: Query[List[PutRecvd]] =
+    materialize{ call(elements).map(_.collect{case a: PutRecvd => a}) }
+
+  val getRecvd: Query[List[GetRecvd]] =
+    materialize{ call(elements).map(_.collect{case a: GetRecvd => a}) }
 
   def requireTraceType[T](trace: List[Record]): Query[Unit] = {
     val idx = trace.indexWhere(_.isInstanceOf[T])
@@ -244,17 +270,78 @@ class Spec(N: Int) extends Specification[Record] {
     ),
 
     multiRule("Join Handling", pointValue = 4)(
-      rule("", pointValue = 1) {
-        accept
+      rule("Exactly one ServerJoining for each serverId", pointValue = 1) {
+        call(serverJoining)
+          .require(sjs => s"No duplicated serverId in ServerJoining actions: $sjs") { sjs =>
+            sjs.forall { sj =>
+              sjs.count(_.serverId == sj.serverId) == 1
+            }
+          }
       },
-      rule("", pointValue = 1) {
-        accept
+      rule("ServerJoining behaves correctly", pointValue = 1) {
+        call(serverJoining).quantifying("ServerJoining").forall{ sj =>
+          for {
+            _ <- call(serverJoiningRecvd)
+              .map(_.collect{ case a if (a.serverId == sj.serverId) && (sj <-< a) => a }).requireOne
+              .label("ServerJoiningRecvd")
+            nsj <- call(nextServerJoining)
+              .map(_.collect{ case a if (a.nextServerId == sj.serverId) && (sj <-< a) => a }).requireAtMostOne
+              .label("NextServerJoining")
+            _ <- nsj match {
+              case Some(next) => if (next.tracerIdentity != sj.tracerIdentity) {
+                accept
+              } else {
+                reject("NextServerJoining is not recorded by a different tracer")
+              }
+              case _ => accept
+            }
+            njs <- call(newJoinedSuccessor)
+              .map(_.collect{ case a if (a.nextServerId == sj.serverId) && (sj <-< a) => a }).requireAtMostOne
+              .label("NewJoinedSuccessor")
+            _ <- njs match {
+              case Some(next) => if (next.tracerIdentity != sj.tracerIdentity) {
+                accept
+              } else {
+                reject("NewJoinedSuccessor is not recorded by a different tracer")
+              }
+              case _ => accept
+            }
+            _ <- call(serverJoined)
+              .map(_.collect{ case a if (a.serverId == sj.serverId) && (sj <-< a) => a })
+              .label("ServerJoined")
+              .requireOne
+            _ <- call(serverJoinedRecvd)
+              .map(_.collect{ case a if (a.serverId == sj.serverId) && (sj <-< a) => a })
+              .label("ServerJoinedRecvd")
+              .requireOne
+            _ <- call(newChain).quantifying("NewChains").exists {
+              case nc if (sj <-< nc) && chainContains(nc.chain, sj.serverId) => accept
+            }
+          } yield ()
+        }
       },
-      rule("", pointValue = 1) {
-        accept
+      rule("ServerJoining eventually followed by AllServersJoined", pointValue = 1) {
+        call(serverJoining).quantifying("ServerJoinings").forall{ sj =>
+          call(allServersJoined).quantifying("AllServersJoined").exists{ allJoined =>
+            if (sj <-< allJoined) {
+              accept
+            } else {
+              reject("No AllServersJoined follows ServerJoining")
+            }
+          }
+        }
       },
-      rule("", pointValue = 1) {
-        accept
+      rule("AllServersJoined must exist and happen before PutRecvd/GetRecvd", pointValue = 1) {
+        call(allServersJoined).requireSome.quantifying("AllServersJoined").exists{ allJoined =>
+          for {
+            _ <- call(putRecvd).quantifying("any PutRecvd").forall{ pr =>
+              if (allJoined <-< pr) accept else reject("AllServersJoined doesn't happen before PutRecvd")
+            }
+            _ <- call(getRecvd).quantifying("any GetRecvd").forall{ gr =>
+              if (allJoined <-< gr) accept else reject("AllServersJoined doesn't happen before GetRecvd")
+            }
+          } yield ()
+        }
       }
     ),
 
