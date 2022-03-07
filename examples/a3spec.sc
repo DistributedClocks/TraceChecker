@@ -401,8 +401,17 @@ class Spec(N: Int) extends Specification[Record] {
     ),
 
     multiRule("Join/Failure Handling", pointValue = 1)(
-      rule("", pointValue = 1) {
-        accept
+      rule("NewChain must be preceded by either ServerFail or ServerJoined", pointValue = 1) {
+        call(newChain).quantifying("all NewChain").forall { nc =>
+          call(serverFail).map(_.collect{ case a if a <-< nc => a })
+            .flatMap{ sfs =>
+              if (sfs.isEmpty) {
+                call(serverJoined).map(_.collect{ case a if a <-< nc => a }).requireSome
+              } else {
+                accept
+              }
+            }
+        }
       }
     ),
 
