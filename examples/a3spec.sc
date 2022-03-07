@@ -87,11 +87,11 @@ def chainContains(chain: String, serverId: Int): Boolean = chainPp(chain).contai
 class Spec(N: Int) extends Specification[Record] {
   import Specification._
 
-  val orderedTraces: Query[List[(String,List[Record])]] = {
+  val orderedTraces: Query[Map[String,List[Record]]] = {
     materialize {
       call(traces).map { traces =>
-        traces.map{ trace =>
-          (trace._1, trace._2.sorted(Element.VectorClockOrdering))
+        traces.foldLeft(Map.empty: Map[String, List[Record]]){ (m, trace) =>
+          m + (trace._1 -> trace._2.sorted(Element.VectorClockOrdering))
         }
       }
     }
@@ -508,11 +508,48 @@ class Spec(N: Int) extends Specification[Record] {
     ),
 
     multiRule("Put Handling", pointValue = 2)(
-      rule("", pointValue = 1) {
-        accept
+      // TODO: this rule does not exactly correspond to spec
+      rule("Put(C) must be preceded by HeadResRecvd(C,S)", pointValue = 1) {
+        call(puts).quantifying("all Puts").forall { p =>
+          call(headResRecvd).quantifying("exists headResRecvd").exists { hrr =>
+            if (hrr <-< p && hrr.clientId == p.clientId && hrr.tracerIdentity == p.tracerIdentity)
+              accept
+            else
+              reject("No corresponding HeadResRecvd before Put")
+          }
+        }
       },
-      rule("", pointValue = 1) {
-        accept
+      rule("Put's semantics all recorded in a single Put-Trace", pointValue = 1) {
+        call(puts).quantifying("all Puts").forall { p =>
+          val ptrace = orderedTraces.map(_.get(p.traceId).toList).requireOne
+          for {
+            pRecvd <- ptrace.map(_.collect{ case a: PutRecvd => a }).requireSome.map(_.last).label("last PutRecvd")
+            pOrdered <- ptrace.map(_.collectFirst{ case a: PutOrdered if (pRecvd <-< a) && (a.tracerIdentity == pRecvd.tracerIdentity) => a }.toList)
+              .requireOne
+            _ <- ptrace.map(_.collect{ case a: PutFwd if pRecvd <-< a => a })
+              .require(_ => "if last PutRecvd is followed by some PutFwd, at least one is recorded at the same server") { pfwds =>
+                if (pfwds.nonEmpty) {
+                  pfwds.exists(pfwd => pfwd.tracerIdentity == pRecvd.tracerIdentity && pfwd.gId == pOrdered.gId)
+                } else {
+                  true
+                }
+              }
+            _ <- ptrace.map(_.collect{ case a: PutFwdRecvd if pRecvd <-< a => a })
+              .require(_ => "if last PutRecvd is followed by some PutFwdRecvds, then they must recorded by different servers") { pfwdRecvds =>
+                if (pfwdRecvds.nonEmpty) {
+                  pfwdRecvds.exists { pfwdRecvd =>
+                    pfwdRecvd.tracerIdentity != pRecvd.tracerIdentity && pfwdRecvd.gId == pOrdered.gId
+                  }
+                } else {
+                  true
+                }
+              }
+            _ <- ptrace.map(_.collectFirst{ case a: PutResult if a.gId == pOrdered.gId => a }.toList)
+              .requireOne
+            _ <- ptrace.map(_.collect{ case a: PutResultRecvd if a.gId == pOrdered.gId && a.tracerIdentity == p.tracerIdentity => a })
+              .requireOne
+          } yield ()
+        }
       }
     ),
 
