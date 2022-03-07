@@ -52,8 +52,8 @@ final case class ServerJoiningRecvd(serverId: Int) extends Record with CoordOp w
 final case class ServerJoinedRecvd(serverId: Int) extends Record with CoordOp with STraceAction
 
 // kvslib-related actions
-final case class KvslibStart(clientId: Int) extends Record with KvslibOp with KTraceAction
-final case class KvslibStop(clientId: Int) extends Record with KvslibOp with KTraceAction
+final case class KvslibStart(clientId: String) extends Record with KvslibOp with KTraceAction
+final case class KvslibStop(clientId: String) extends Record with KvslibOp with KTraceAction
 final case class HeadReq(clientId: String) extends Record with KvslibOp with KTraceAction
 final case class HeadResRecvd(clientId: String, serverId: Int) extends Record with KvslibOp with KTraceAction
 final case class TailReq(clientId: String) extends Record with KvslibOp with KTraceAction
@@ -69,7 +69,7 @@ def decodeChain(chain: String): Array[Byte] =
 def chainPp(gameState: String): List[Int] =
   decodeChain(gameState).map(b => b.toInt).toList
 
-class Spec() extends Specification[Record] {
+class Spec(N: Int) extends Specification[Record] {
   import Specification._
 
   val orderedTraces: Query[List[(String,List[Record])]] = {
@@ -82,21 +82,106 @@ class Spec() extends Specification[Record] {
     }
   }
 
-  val ktraces: Query[Map[String, List[Record]]] = ???
+  val kvslibStarts: Query[List[KvslibStart]] =
+    materialize {
+      elements.map(_.collect{ case a: KvslibStart => a })
+    }
+
+  val kvslibStops: Query[List[KvslibStop]] =
+    materialize {
+      elements.map(_.collect{ case a: KvslibStop => a })
+    }
+
+  val headReqs: Query[List[HeadReq]] =
+    materialize {
+      elements.map(_.collect{ case a: HeadReq => a })
+    }
+
+  val tailReqs: Query[List[TailReq]] =
+    materialize {
+      elements.map(_.collect{ case a: TailReq => a })
+    }
+
+  val puts: Query[List[Put]] =
+    materialize {
+      elements.map(_.collect{ case a: Put => a })
+    }
+
+  val gets: Query[List[Get]] =
+    materialize {
+      elements.map(_.collect{ case a: Get => a })
+    }
+
+  def requireTraceType[T](trace: List[Record]): Query[Unit] = {
+    val idx = trace.indexWhere(_.isInstanceOf[T])
+    if (idx == -1) {
+      accept
+    } else {
+      reject(s"Action ${trace(idx)} is in the wrong trace")
+    }
+  }
+
+//  val ktraces: Query[Map[String, List[Record]]] = ???
 //    materialize {
 //    }
 
   override def rootRule: RootRule = RootRule(
     multiRule("Initialization", pointValue = 4)(
-      rule("KvslibStart exists and happens before other kvslib actions", pointValue = 1) {
-        accept
+      rule("KvslibStart exists and happens before KvslibStop/HeadReq/TailReq/Put/Get", pointValue = 1) {
+        kvslibStarts.quantifying("KvslibStart").forall { kstart =>
+          for {
+            _ <- kvslibStops.quantifying("KvslibStop").forall {
+              case kstop if kstart.clientId == kstop.clientId =>
+                if (kstart <-< kstop) {
+                  accept
+                } else {
+                  reject("KvslibStart doesn't happen before KvslibStop")
+                }
+            }
+            _ <- headReqs.quantifying("HeadReq").forall {
+              case hreq if kstart.clientId == hreq.clientId =>
+                if (kstart <-< hreq) {
+                  accept
+                } else {
+                  reject("KvslibStart doesn't happen before HeadReq")
+                }
+            }
+            _ <- tailReqs.quantifying("TailReq").forall {
+              case treq if kstart.clientId == treq.clientId =>
+                if (kstart <-< treq) {
+                  accept
+                } else {
+                  reject("KvslibStart doesn't happen before TailReq")
+                }
+            }
+            _ <- puts.quantifying("Put").forall {
+              case put if kstart.clientId == put.clientId =>
+                if (kstart <-< put) {
+                  accept
+                } else {
+                  reject("KvslibStart doesn't happen before Put")
+                }
+            }
+            _ <- gets.quantifying("Get").forall {
+              case get if kstart.clientId == get.clientId =>
+                if (kstart <-< get) {
+                  accept
+                } else {
+                  reject("KvslibStart doesn't happen before Get")
+                }
+            }
+          } yield ()
+        }
       },
+
       rule("CoordStart recorded exactly once and happens before ServerJoiningRecvd and AllServersJoined", pointValue = 1) {
         accept
       },
+
       rule("Exactly N SeverStart", pointValue = 1) {
         accept
       },
+
       rule("ServerStart happens before ServerJoining", pointValue = 1) {
         accept
       }
@@ -220,8 +305,9 @@ class Spec() extends Specification[Record] {
 @
 
 @main
-def a3spec(@arg(doc = "path to the trace file to analyse. this file will the one you told the tracing server to generate, and should contain exactly one trace") traceFiles: os.Path*): Unit = {
-  val spec = new Spec()
+def a3spec(@arg(doc = "the number of servers on the chain") n: Int,
+           @arg(doc = "path to the trace file to analyse. this file will the one you told the tracing server to generate, and should contain exactly one trace") traceFiles: os.Path*): Unit = {
+  val spec = new Spec(n)
   val results = spec.checkRules(traceFiles:_*)
   if (results.success) {
     println("all checks passed!")
