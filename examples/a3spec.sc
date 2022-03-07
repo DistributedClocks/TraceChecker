@@ -197,6 +197,12 @@ class Spec(N: Int) extends Specification[Record] {
   val tailResRecvd: Query[List[TailResRecvd]] =
     materialize{ elements.map(_.collect({ case a: TailResRecvd => a })) }
 
+  val putResultRecvd: Query[List[PutResultRecvd]] =
+    materialize{ elements.map(_.collect({ case a: PutResultRecvd => a })) }
+
+  val getResultRecvd: Query[List[GetResultRecvd]] =
+    materialize{ elements.map(_.collect({ case a: GetResultRecvd => a })) }
+
   def requireTraceType[T](trace: List[Record]): Query[Unit] = {
     val idx = trace.indexWhere(_.isInstanceOf[T])
     if (idx == -1) {
@@ -582,13 +588,27 @@ class Spec(N: Int) extends Specification[Record] {
     ),
 
     multiRule("Put-Get Data Consistency", pointValue = 1)(
-      rule("", pointValue = 1) {
-        accept
+      rule("Get must have the same value as its latest preceding Put", pointValue = 1) {
+        call(puts).quantifying("Put").forall { p =>
+          call(putResultRecvd).quantifying("corresponding PutResultRecvd").forall {
+            case presRecvd if p.key == presRecvd.key =>
+              call(getResultRecvd).quantifying("corresponding GetResultRecvd").forall {
+                case gresRecvd if p.key == gresRecvd.key && presRecvd.gId < gresRecvd =>
+                   call(putResultRecvd).flatMap { allPutResultRecvd =>
+                     if (!allPutResultRecvd.exists(x => x.gId > presRecvd.gId && x.gId < gresRecvd.gId)) {
+                       if (p.value != gresRecvd.value)
+                         reject("GetResultRecvd doesn't have the same value as its latest preceding Put")
+                     }
+                     accept
+                   }
+              }
+          }
+        }
       }
     ),
 
     multiRule("Get Before Any Put Data Consistency", pointValue = 1)(
-      rule("", pointValue = 1) {
+      rule("Get with no preceding Put should return empty string", pointValue = 1) {
         accept
       }
     ),
