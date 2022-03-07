@@ -23,6 +23,10 @@ sealed trait ClientIdOp {
   val clientId: String
 }
 
+sealed trait FailoverOp {
+  val serverId: Int
+}
+
 sealed abstract class Record extends Element
 // server-related actions
 final case class ServerStart(serverId: Int) extends Record with ServerOp with STraceAction
@@ -30,10 +34,14 @@ final case class ServerJoining(serverId: Int) extends Record with ServerOp with 
 final case class NextServerJoining(nextServerId: Int) extends Record with ServerOp with STraceAction
 final case class NewJoinedSuccessor(nextServerId: Int) extends Record with ServerOp with STraceAction
 final case class ServerJoined(serverId: Int) extends Record with ServerOp with STraceAction
-final case class ServerFailedRecvd(failedServerId: Int) extends Record with ServerOp with CTraceAction
-final case class NewFailoverSuccessor(newNextServerId: Int) extends Record with ServerOp with CTraceAction
-final case class NewFailoverPredecessor(newPrevServerId: Int) extends Record with ServerOp with CTraceAction
-final case class ServerFailHandled(FailServerId: Int) extends Record with ServerOp with CTraceAction
+final case class ServerFailRecvd(failedServerId: Int) extends Record with ServerOp with CTraceAction
+final case class NewFailoverSuccessor(newNextServerId: Int) extends Record with ServerOp with CTraceAction with FailoverOp {
+  override val serverId = newNextServerId
+}
+final case class NewFailoverPredecessor(newPrevServerId: Int) extends Record with ServerOp with CTraceAction with FailoverOp {
+  override val serverId = newPrevServerId
+}
+final case class ServerFailHandled(failServerId: Int) extends Record with ServerOp with CTraceAction
 final case class PutRecvd(clientId: String, opId: Long, key: String, value: String) extends Record with ServerOp with PTraceAction with ClientIdOp
 final case class PutOrdered(clientId: String, opId: Long, gId: Long, key: String, value: String) extends Record with ServerOp with PTraceAction with ClientIdOp
 final case class PutFwd(clientId: String, opId: Long, gId: Long, key: String, value: String) extends Record with ServerOp with PTraceAction with ClientIdOp
@@ -91,77 +99,89 @@ class Spec(N: Int) extends Specification[Record] {
 
   val kvslibStarts: Query[List[KvslibStart]] =
     materialize {
-      call(elements).map(_.collect{ case a: KvslibStart => a })
+      elements.map(_.collect{ case a: KvslibStart => a })
     }
 
   val kvslibStops: Query[List[KvslibStop]] =
     materialize {
-      call(elements).map(_.collect{ case a: KvslibStop => a })
+      elements.map(_.collect{ case a: KvslibStop => a })
     }
 
   val headReqs: Query[List[HeadReq]] =
     materialize {
-      call(elements).map(_.collect{ case a: HeadReq => a })
+      elements.map(_.collect{ case a: HeadReq => a })
     }
 
   val tailReqs: Query[List[TailReq]] =
     materialize {
-      call(elements).map(_.collect{ case a: TailReq => a })
+      elements.map(_.collect{ case a: TailReq => a })
     }
 
   val puts: Query[List[Put]] =
     materialize {
-      call(elements).map(_.collect{ case a: Put => a })
+      elements.map(_.collect{ case a: Put => a })
     }
 
   val gets: Query[List[Get]] =
     materialize {
-      call(elements).map(_.collect{ case a: Get => a })
+      elements.map(_.collect{ case a: Get => a })
     }
 
   val theCoordStart: Query[CoordStart] =
-    call(elements).map(_.collect{ case a: CoordStart => a })
+    elements.map(_.collect{ case a: CoordStart => a })
       .requireOne
 
   // FIXME: should we require only one?
   val allServersJoined: Query[List[AllServersJoined]] =
-    call(elements).map(_.collect{ case a: AllServersJoined => a})
-
-  val serverJoiningRecvd: Query[List[ServerJoiningRecvd]] =
-    call(elements).map(_.collect{ case a: ServerJoiningRecvd => a })
+    elements.map(_.collect{ case a: AllServersJoined => a})
 
   val serverStart: Query[List[ServerStart]] =
-    materialize{ call(elements).map(_.collect{ case a: ServerStart => a }) }
+    materialize{ elements.map(_.collect{ case a: ServerStart => a }) }
 
   val serverJoining: Query[List[ServerJoining]] =
-    materialize{ call(elements).map(_.collect{ case a: ServerJoining => a }) }
+    materialize{ elements.map(_.collect{ case a: ServerJoining => a }) }
 
   val opsWithClientId: Query[List[Record with ClientIdOp]] =
-    materialize{ call(elements).map(_.collect{ case a: ClientIdOp => a }) }
+    materialize{ elements.map(_.collect{ case a: ClientIdOp => a }) }
 
   val serverJoiningRecvd: Query[List[ServerJoiningRecvd]] =
-    materialize{ call(elements).map(_.collect{case a: ServerJoiningRecvd => a}) }
+    materialize{ elements.map(_.collect{ case a: ServerJoiningRecvd => a }) }
 
   val nextServerJoining: Query[List[NextServerJoining]] =
-    materialize{ call(elements).map(_.collect{case a: NextServerJoining => a}) }
+    materialize{ elements.map(_.collect{ case a: NextServerJoining => a }) }
 
   val newJoinedSuccessor: Query[List[NewJoinedSuccessor]] =
-    materialize{ call(elements).map(_.collect{case a: NewJoinedSuccessor => a}) }
+    materialize{ elements.map(_.collect{ case a: NewJoinedSuccessor => a }) }
 
   val serverJoined: Query[List[ServerJoined]] =
-    materialize{ call(elements).map(_.collect{case a: ServerJoined => a}) }
+    materialize{ elements.map(_.collect{ case a: ServerJoined => a }) }
 
   val serverJoinedRecvd: Query[List[ServerJoinedRecvd]] =
-    materialize{ call(elements).map(_.collect{case a: ServerJoinedRecvd => a}) }
+    materialize{ elements.map(_.collect{ case a: ServerJoinedRecvd => a }) }
 
   val newChain: Query[List[NewChain]] =
-    materialize{ call(elements).map(_.collect{case a: NewChain => a}) }
+    materialize{ elements.map(_.collect{ case a: NewChain => a }) }
 
   val putRecvd: Query[List[PutRecvd]] =
-    materialize{ call(elements).map(_.collect{case a: PutRecvd => a}) }
+    materialize{ elements.map(_.collect{ case a: PutRecvd => a }) }
 
   val getRecvd: Query[List[GetRecvd]] =
-    materialize{ call(elements).map(_.collect{case a: GetRecvd => a}) }
+    materialize{ elements.map(_.collect{ case a: GetRecvd => a }) }
+
+  val serverFail: Query[List[ServerFail]] =
+    materialize{ elements.map(_.collect{ case a: ServerFail => a }) }
+
+  val serverFailRecvd: Query[List[ServerFailRecvd]] =
+    materialize{ elements.map(_.collect{ case a: ServerFailRecvd => a }) }
+
+  val failover: Query[List[Record with FailoverOp]] =
+    materialize{ elements.map(_.collect{ case a: FailoverOp => a }) }
+
+  val serverFailHandled: Query[List[ServerFailHandled]] =
+    materialize{ elements.map(_.collect({ case a: ServerFailHandled => a })) }
+
+  val serverFailHandledRecvd: Query[List[ServerFailHandledRecvd]] =
+    materialize{ elements.map(_.collect({ case a: ServerFailHandledRecvd => a })) }
 
   def requireTraceType[T](trace: List[Record]): Query[Unit] = {
     val idx = trace.indexWhere(_.isInstanceOf[T])
@@ -171,10 +191,6 @@ class Spec(N: Int) extends Specification[Record] {
       reject(s"Action ${trace(idx)} is in the wrong trace")
     }
   }
-
-//  val ktraces: Query[Map[String, List[Record]]] = ???
-//    materialize {
-//    }
 
   override def rootRule: RootRule = RootRule(
     multiRule("Initialization", pointValue = 4)(
@@ -346,20 +362,41 @@ class Spec(N: Int) extends Specification[Record] {
     ),
 
     multiRule("Failure Handling", pointValue = 5)(
-      rule("", pointValue = 1) {
-        accept
+      rule("ServerFail followed by one or two ServerFailRecvd", pointValue = 1) {
+        call(serverFail).quantifying("all ServerFail").forall { sf =>
+          call(serverFailRecvd).map(_.collect{ case a if (sf.serverId == a.failedServerId) && (sf <-< a) => a })
+            .require(l => s"ServerFail should only be followed by one or two ServerFailedRecvd, found: $l") { sfr =>
+              sfr.size == 1 || sfr.size == 2
+            }
+        }
       },
-      rule("", pointValue = 1) {
-        accept
+      rule("ServerFailRecvd followed by at most one NewFailoverSuccessor or NewFailoverPredecessor", pointValue = 1) {
+        call(serverFailRecvd).quantifying("all ServerFailRecvd").forall { sfr =>
+          call(failover).map(_.collect{ case a if sfr.failedServerId == a.serverId => a })
+            .label("NewFailoverSuccessor or NewFailoverPredecessor")
+            .requireAtMostOne
+        }
       },
-      rule("", pointValue = 1) {
-        accept
+      rule("ServerFailRecvd(S) must be followed by at most one ServerFailHandled(S)", pointValue = 1) {
+        call(serverFailRecvd).quantifying("all ServerFailRecvd").forall { sfr =>
+          call(serverFailHandled).map(_.collect{ case a if sfr.failedServerId == a.failServerId => a })
+            .label("succeeding ServerFailHanlded")
+            .requireAtMostOne
+        }
       },
-      rule("", pointValue = 1) {
-        accept
+      rule("ServerFailHandledRecvd(S) must be preceded by ServerFailHandled(S)", pointValue = 1) {
+        call(serverFailHandledRecvd).quantifying("all ServerFailHandledRecvd").forall{ fhr =>
+          call(serverFailHandled).map(_.collect{ case a if a <-< fhr => a })
+            .label("preceding ServerFailHandled")
+            .requireSome
+        }
       },
-      rule("", pointValue = 1) {
-        accept
+      rule("ServerFail(S) must be eventually followed by NewChain(C) without S", pointValue = 1) {
+        call(serverFail).quantifying("all ServerFail").forall { sf =>
+          call(newChain).quantifying("exists NewChain").exists {
+            case c if sf <-< c && chainContains(c.chain, sf.serverId) => accept
+          }
+        }
       }
     ),
 
