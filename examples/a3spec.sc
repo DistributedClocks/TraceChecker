@@ -107,16 +107,6 @@ class Spec(N: Int) extends Specification[Record] {
       elements.map(_.collect{ case a: KvslibStop => a })
     }
 
-  val headReqs: Query[List[HeadReq]] =
-    materialize {
-      elements.map(_.collect{ case a: HeadReq => a })
-    }
-
-  val tailReqs: Query[List[TailReq]] =
-    materialize {
-      elements.map(_.collect{ case a: TailReq => a })
-    }
-
   val puts: Query[List[Put]] =
     materialize {
       elements.map(_.collect{ case a: Put => a })
@@ -183,6 +173,30 @@ class Spec(N: Int) extends Specification[Record] {
   val serverFailHandledRecvd: Query[List[ServerFailHandledRecvd]] =
     materialize{ elements.map(_.collect({ case a: ServerFailHandledRecvd => a })) }
 
+  val headReq: Query[List[HeadReq]] =
+    materialize{ elements.map(_.collect({ case a: HeadReq => a })) }
+
+  val headReqRecvd: Query[List[HeadReqRecvd]] =
+    materialize{ elements.map(_.collect({ case a: HeadReqRecvd => a })) }
+
+  val headRes: Query[List[HeadRes]] =
+    materialize{ elements.map(_.collect({ case a: HeadRes => a })) }
+
+  val headResRecvd: Query[List[HeadResRecvd]] =
+    materialize{ elements.map(_.collect({ case a: HeadResRecvd => a })) }
+
+  val tailReq: Query[List[TailReq]] =
+    materialize{ elements.map(_.collect({ case a: TailReq => a })) }
+
+  val tailReqRecvd: Query[List[TailReqRecvd]] =
+    materialize{ elements.map(_.collect({ case a: TailReqRecvd => a })) }
+
+  val tailRes: Query[List[TailRes]] =
+    materialize{ elements.map(_.collect({ case a: TailRes => a })) }
+
+  val tailResRecvd: Query[List[TailResRecvd]] =
+    materialize{ elements.map(_.collect({ case a: TailResRecvd => a })) }
+
   def requireTraceType[T](trace: List[Record]): Query[Unit] = {
     val idx = trace.indexWhere(_.isInstanceOf[T])
     if (idx == -1) {
@@ -205,7 +219,7 @@ class Spec(N: Int) extends Specification[Record] {
                   reject("KvslibStart doesn't happen before KvslibStop")
                 }
             }
-            _ <- call(headReqs).quantifying("HeadReq").forall {
+            _ <- call(headReq).quantifying("HeadReq").forall {
               case hreq if kstart.clientId == hreq.clientId =>
                 if (kstart <-< hreq) {
                   accept
@@ -213,7 +227,7 @@ class Spec(N: Int) extends Specification[Record] {
                   reject("KvslibStart doesn't happen before HeadReq")
                 }
             }
-            _ <- call(tailReqs).quantifying("TailReq").forall {
+            _ <- call(tailReq).quantifying("TailReq").forall {
               case treq if kstart.clientId == treq.clientId =>
                 if (kstart <-< treq) {
                   accept
@@ -416,17 +430,41 @@ class Spec(N: Int) extends Specification[Record] {
     ),
 
     multiRule("Head Server Requests", pointValue = 4)(
-      rule("", pointValue = 1) {
-        accept
+      rule("The number of HeadReq(C) and HeadReqRecvd(C) must be identical", pointValue = 1) {
+        for {
+          hrs <- call(headReq).label("all HeadReq")
+          hrrs <- call(headReqRecvd).label("all HeadReqRecvd")
+          _ <- if (hrs.size == hrrs.size) accept else reject("Different number of HeadReq and HeadReqRecvd")
+        } yield ()
       },
-      rule("", pointValue = 1) {
-        accept
+      rule("HeadReq(C) must happen before HeadReqRecvd(C)", pointValue = 1) {
+        call(headReq).quantifying("all HeadReq").forall { hreq =>
+          for {
+            recvd <- call(headReqRecvd).map(_.find(_.clientId == hreq.clientId))
+            _ <- recvd match {
+              case Some(r) => if (hreq <-< r) accept else reject("HeadReq does not happen before HeadReqRecvd")
+              case None => reject("Cannot find the corresponding HeadReqRecvd")
+            }
+          } yield ()
+        }
       },
-      rule("", pointValue = 1) {
-        accept
+      rule("The number of HeadRes(C,S) and HeadResRecvd(C,S) must be identical", pointValue = 1) {
+        for {
+          hrs <- call(headRes).label("all HeadRes")
+          hrrs <- call(headResRecvd).label("all HeadResRecvd")
+          _ <- if (hrs.size == hrrs.size) accept else reject("Different number of HeadRes and HeadResRecvd")
+        } yield ()
       },
-      rule("", pointValue = 1) {
-        accept
+      rule("HeadRes(C,S) must happen before HeadResRecvd(C,S)", pointValue = 1) {
+        call(headRes).quantifying("all HeadRes").forall { hres =>
+          for {
+            recvd <- call(headReqRecvd).map(_.find(_.clientId == hres.clientId))
+            _ <- recvd match {
+              case Some(r) => if (hres <-< r) accept else reject("HeadRes does not happen before HeadResRecvd")
+              case None => reject("Cannot find the corresponding HeadResRecvd")
+            }
+          } yield ()
+        }
       }
     ),
 
