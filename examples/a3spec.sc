@@ -519,7 +519,7 @@ class Spec(N: Int) extends Specification[Record] {
           }
         }
       },
-      rule("Put's semantics all recorded in a single Put-Trace", pointValue = 1) {
+      rule("The semantics of Put all recorded in a single Put-Trace", pointValue = 1) {
         call(puts).quantifying("all Puts").forall { p =>
           val ptrace = orderedTraces.map(_.get(p.traceId).toList).requireOne
           for {
@@ -554,11 +554,30 @@ class Spec(N: Int) extends Specification[Record] {
     ),
 
     multiRule("Get Handling", pointValue = 2)(
-      rule("", pointValue = 1) {
-        accept
+      // TODO: this rule does not exactly correspond to spec
+      rule("Get(C) must be preceded by TailResRecvd(C,S)", pointValue = 1) {
+        call(gets).quantifying("all Gets").forall { g =>
+          call(tailResRecvd).quantifying("exists tailResRecvd").exists { trr =>
+            if (trr <-< g && trr.clientId == g.clientId && trr.tracerIdentity == g.tracerIdentity)
+              accept
+            else
+              reject("No corresponding TailResRecvd before Get")
+          }
+        }
       },
-      rule("", pointValue = 1) {
-        accept
+      rule("The semantics of Get all recorded in a single Get-Trace", pointValue = 1) {
+        call(gets).quantifying("all Gets").forall { g =>
+          val gtrace = orderedTraces.map(_.get(g.traceId).toList).requireOne
+          for {
+            gRecvd <- gtrace.map(_.collect{ case a: GetRecvd => a }).requireSome.map(_.last).label("last GetRecvd")
+            gOrdered <- gtrace.map(_.collectFirst{ case a: GetOrdered if (gRecvd <-< a) && (a.tracerIdentity == gRecvd.tracerIdentity) => a }.toList)
+              .requireOne
+            _ <- gtrace.map(_.collectFirst{ case a: GetResult if a.gId == gOrdered.gId => a }.toList)
+              .requireOne
+            _ <- gtrace.map(_.collect{ case a: GetResultRecvd if a.gId == gOrdered.gId && a.tracerIdentity == g.tracerIdentity => a })
+              .requireOne
+          } yield ()
+        }
       }
     ),
 
@@ -590,6 +609,10 @@ class Spec(N: Int) extends Specification[Record] {
 def a3spec(@arg(doc = "the number of servers on the chain") n: Int,
            @arg(doc = "path to the trace file to analyse. this file will the one you told the tracing server to generate, and should contain exactly one trace") traceFiles: os.Path*): Unit = {
   val spec = new Spec(n)
+  if (traceFiles.isEmpty) {
+    sys.error("No trace file provided.")
+    sys.exit(0)
+  }
   val results = spec.checkRules(traceFiles:_*)
   if (results.success) {
     println("all checks passed!")
