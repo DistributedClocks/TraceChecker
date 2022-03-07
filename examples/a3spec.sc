@@ -74,7 +74,7 @@ class Spec(N: Int) extends Specification[Record] {
 
   val orderedTraces: Query[List[(String,List[Record])]] = {
     materialize {
-      traces.map { traces =>
+      call(traces).map { traces =>
         traces.map{ trace =>
           (trace._1, trace._2.sorted(Element.VectorClockOrdering))
         }
@@ -84,33 +84,50 @@ class Spec(N: Int) extends Specification[Record] {
 
   val kvslibStarts: Query[List[KvslibStart]] =
     materialize {
-      elements.map(_.collect{ case a: KvslibStart => a })
+      call(elements).map(_.collect{ case a: KvslibStart => a })
     }
 
   val kvslibStops: Query[List[KvslibStop]] =
     materialize {
-      elements.map(_.collect{ case a: KvslibStop => a })
+      call(elements).map(_.collect{ case a: KvslibStop => a })
     }
 
   val headReqs: Query[List[HeadReq]] =
     materialize {
-      elements.map(_.collect{ case a: HeadReq => a })
+      call(elements).map(_.collect{ case a: HeadReq => a })
     }
 
   val tailReqs: Query[List[TailReq]] =
     materialize {
-      elements.map(_.collect{ case a: TailReq => a })
+      call(elements).map(_.collect{ case a: TailReq => a })
     }
 
   val puts: Query[List[Put]] =
     materialize {
-      elements.map(_.collect{ case a: Put => a })
+      call(elements).map(_.collect{ case a: Put => a })
     }
 
   val gets: Query[List[Get]] =
     materialize {
-      elements.map(_.collect{ case a: Get => a })
+      call(elements).map(_.collect{ case a: Get => a })
     }
+
+  val theCoordStart: Query[CoordStart] =
+    call(elements).map(_.collect{ case a: CoordStart => a })
+      .requireOne
+
+  // FIXME: should we require only one?
+  val allServersJoined: Query[List[AllServersJoined]] =
+    call(elements).map(_.collect{ case a: AllServersJoined => a})
+
+  val serverJoiningRecvd: Query[List[ServerJoiningRecvd]] =
+    call(elements).map(_.collect{ case a: ServerJoiningRecvd => a })
+
+  val serverStart: Query[List[ServerStart]] =
+    materialize{ call(elements).map(_.collect{ case a: ServerStart => a }) }
+
+  val serverJoining: Query[List[ServerJoining]] =
+    materialize{ call(elements).map(_.collect{ case a: ServerJoining => a }) }
 
   def requireTraceType[T](trace: List[Record]): Query[Unit] = {
     val idx = trace.indexWhere(_.isInstanceOf[T])
@@ -128,9 +145,9 @@ class Spec(N: Int) extends Specification[Record] {
   override def rootRule: RootRule = RootRule(
     multiRule("Initialization", pointValue = 4)(
       rule("KvslibStart exists and happens before KvslibStop/HeadReq/TailReq/Put/Get", pointValue = 1) {
-        kvslibStarts.quantifying("KvslibStart").forall { kstart =>
+        call(kvslibStarts).quantifying("KvslibStart").forall { kstart =>
           for {
-            _ <- kvslibStops.quantifying("KvslibStop").forall {
+            _ <- call(kvslibStops).quantifying("KvslibStop").forall {
               case kstop if kstart.clientId == kstop.clientId =>
                 if (kstart <-< kstop) {
                   accept
@@ -138,7 +155,7 @@ class Spec(N: Int) extends Specification[Record] {
                   reject("KvslibStart doesn't happen before KvslibStop")
                 }
             }
-            _ <- headReqs.quantifying("HeadReq").forall {
+            _ <- call(headReqs).quantifying("HeadReq").forall {
               case hreq if kstart.clientId == hreq.clientId =>
                 if (kstart <-< hreq) {
                   accept
@@ -146,7 +163,7 @@ class Spec(N: Int) extends Specification[Record] {
                   reject("KvslibStart doesn't happen before HeadReq")
                 }
             }
-            _ <- tailReqs.quantifying("TailReq").forall {
+            _ <- call(tailReqs).quantifying("TailReq").forall {
               case treq if kstart.clientId == treq.clientId =>
                 if (kstart <-< treq) {
                   accept
@@ -154,7 +171,7 @@ class Spec(N: Int) extends Specification[Record] {
                   reject("KvslibStart doesn't happen before TailReq")
                 }
             }
-            _ <- puts.quantifying("Put").forall {
+            _ <- call(puts).quantifying("Put").forall {
               case put if kstart.clientId == put.clientId =>
                 if (kstart <-< put) {
                   accept
@@ -162,7 +179,7 @@ class Spec(N: Int) extends Specification[Record] {
                   reject("KvslibStart doesn't happen before Put")
                 }
             }
-            _ <- gets.quantifying("Get").forall {
+            _ <- call(gets).quantifying("Get").forall {
               case get if kstart.clientId == get.clientId =>
                 if (kstart <-< get) {
                   accept
@@ -175,15 +192,30 @@ class Spec(N: Int) extends Specification[Record] {
       },
 
       rule("CoordStart recorded exactly once and happens before ServerJoiningRecvd and AllServersJoined", pointValue = 1) {
-        accept
+        for {
+          cstart <- call(theCoordStart).label("The CoordStart")
+          _ <- call(serverJoiningRecvd).label("ServerJoiningRecvd")
+            .require(sjr => s"ServerJoiningRecvd should happen after CoordStart: $sjr") { _.forall(cstart <-< _) }
+          _ <- call(allServersJoined).label("AllServerJoined")
+            .require(sjr => s"ServerJoiningRecvd should happen after CoordStart: $sjr") { _.forall(cstart <-< _) }
+        } yield ()
       },
 
       rule("Exactly N SeverStart", pointValue = 1) {
-        accept
+        call(serverStart).label("ServerStarts")
+          .require(ss => s"There must be exactly N ServerStart actions, $ss") { _.size == N }
       },
 
       rule("ServerStart happens before ServerJoining", pointValue = 1) {
-        accept
+        call(serverStart).quantifying("ServerStarts").forall { ss =>
+          call(serverJoining).quantifying("ServerJoinings").forall { sj =>
+            if (ss <-< sj) {
+              accept
+            } else {
+              reject("ServerJoining does not happen after ServerStart")
+            }
+          }
+        }
       }
     ),
 
