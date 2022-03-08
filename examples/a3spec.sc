@@ -377,10 +377,10 @@ class Spec(N: Int) extends Specification[Record] {
       rule("AllServersJoined must exist and happen before PutRecvd/GetRecvd", pointValue = 1) {
         call(allServersJoined).requireSome.quantifying("AllServersJoined").exists{ allJoined =>
           for {
-            _ <- call(putRecvd).quantifying("any PutRecvd").forall{ pr =>
+            _ <- call(putRecvd).quantifying("PutRecvd").forall{ pr =>
               if (allJoined <-< pr) accept else reject("AllServersJoined doesn't happen before PutRecvd")
             }
-            _ <- call(getRecvd).quantifying("any GetRecvd").forall{ gr =>
+            _ <- call(getRecvd).quantifying("GetRecvd").forall{ gr =>
               if (allJoined <-< gr) accept else reject("AllServersJoined doesn't happen before GetRecvd")
             }
           } yield ()
@@ -390,7 +390,7 @@ class Spec(N: Int) extends Specification[Record] {
 
     multiRule("Failure Handling", pointValue = 5)(
       rule("ServerFail followed by one or two ServerFailRecvd", pointValue = 1) {
-        call(serverFail).quantifying("all ServerFail").forall { sf =>
+        call(serverFail).quantifying("ServerFail").forall { sf =>
           call(serverFailRecvd).map(_.collect{ case a if (sf.serverId == a.failedServerId) && (sf <-< a) => a })
             .require(l => s"ServerFail should only be followed by one or two ServerFailedRecvd, found: $l") { sfr =>
               sfr.size == 1 || sfr.size == 2
@@ -398,30 +398,30 @@ class Spec(N: Int) extends Specification[Record] {
         }
       },
       rule("ServerFailRecvd followed by at most one NewFailoverSuccessor or NewFailoverPredecessor", pointValue = 1) {
-        call(serverFailRecvd).quantifying("all ServerFailRecvd").forall { sfr =>
+        call(serverFailRecvd).quantifying("ServerFailRecvd").forall { sfr =>
           call(failover).map(_.collect{ case a if sfr.failedServerId == a.serverId => a })
             .label("NewFailoverSuccessor or NewFailoverPredecessor")
             .requireAtMostOne
         }
       },
       rule("ServerFailRecvd(S) must be followed by at most one ServerFailHandled(S)", pointValue = 1) {
-        call(serverFailRecvd).quantifying("all ServerFailRecvd").forall { sfr =>
+        call(serverFailRecvd).quantifying("ServerFailRecvd").forall { sfr =>
           call(serverFailHandled).map(_.collect{ case a if sfr.failedServerId == a.failedServerId => a })
             .label("succeeding ServerFailHanlded")
             .requireAtMostOne
         }
       },
       rule("ServerFailHandledRecvd(S) must be preceded by ServerFailHandled(S)", pointValue = 1) {
-        call(serverFailHandledRecvd).quantifying("all ServerFailHandledRecvd").forall{ fhr =>
+        call(serverFailHandledRecvd).quantifying("ServerFailHandledRecvd").forall{ fhr =>
           call(serverFailHandled).map(_.collect{ case a if a <-< fhr => a })
             .label("preceding ServerFailHandled")
             .requireSome
         }
       },
       rule("ServerFail(S) must be eventually followed by NewChain(C) without S", pointValue = 1) {
-        call(serverFail).quantifying("all ServerFail").forall { sf =>
-          call(newChain).quantifying("exists NewChain").exists {
-            case c if sf <-< c && chainContains(c.chain, sf.serverId) => accept
+        call(serverFail).quantifying("ServerFail").forall { sf =>
+          call(newChain).quantifying("NewChain").exists {
+            case c if sf <-< c && !chainContains(c.chain, sf.serverId) => accept
           }
         }
       }
@@ -429,7 +429,7 @@ class Spec(N: Int) extends Specification[Record] {
 
     multiRule("Join/Failure Handling", pointValue = 1)(
       rule("NewChain must be preceded by either ServerFail or ServerJoined", pointValue = 1) {
-        call(newChain).quantifying("all NewChain").forall { nc =>
+        call(newChain).quantifying("NewChain").forall { nc =>
           call(serverFail).map(_.collect{ case a if a <-< nc => a })
             .flatMap{ sfs =>
               if (sfs.isEmpty) {
@@ -445,13 +445,13 @@ class Spec(N: Int) extends Specification[Record] {
     multiRule("Head Server Requests", pointValue = 4)(
       rule("The number of HeadReq(C) and HeadReqRecvd(C) must be identical", pointValue = 1) {
         for {
-          hrs <- call(headReq).label("all HeadReq")
-          hrrs <- call(headReqRecvd).label("all HeadReqRecvd")
+          hrs <- call(headReq).label("HeadReq")
+          hrrs <- call(headReqRecvd).label("HeadReqRecvd")
           _ <- if (hrs.size == hrrs.size) accept else reject("Different number of HeadReq and HeadReqRecvd")
         } yield ()
       },
       rule("HeadReq(C) must happen before HeadReqRecvd(C)", pointValue = 1) {
-        call(headReq).quantifying("all HeadReq").forall { hreq =>
+        call(headReq).quantifying("HeadReq").forall { hreq =>
           for {
             recvd <- call(headReqRecvd).map(_.find(x => x.clientId == hreq.clientId && hreq <-< x)).label("HeadReqRecvd")
             _ <- recvd match {
@@ -463,13 +463,13 @@ class Spec(N: Int) extends Specification[Record] {
       },
       rule("The number of HeadRes(C,S) and HeadResRecvd(C,S) must be identical", pointValue = 1) {
         for {
-          hrs <- call(headRes).label("all HeadRes")
-          hrrs <- call(headResRecvd).label("all HeadResRecvd")
+          hrs <- call(headRes).label("HeadRes")
+          hrrs <- call(headResRecvd).label("HeadResRecvd")
           _ <- if (hrs.size == hrrs.size) accept else reject("Different number of HeadRes and HeadResRecvd")
         } yield ()
       },
       rule("HeadRes(C,S) must happen before HeadResRecvd(C,S)", pointValue = 1) {
-        call(headRes).quantifying("all HeadRes").forall { hres =>
+        call(headRes).quantifying("HeadRes").forall { hres =>
           for {
             recvd <- call(headResRecvd).map(_.find(x => x.clientId == hres.clientId && hres <-< x)).label("HeadResRecvd")
             _ <- recvd match {
@@ -490,7 +490,7 @@ class Spec(N: Int) extends Specification[Record] {
         } yield ()
       },
       rule("TailReq(C) must happen before TailReqRecvd(C)", pointValue = 1) {
-        call(tailReq).quantifying("all TailReq").forall { treq =>
+        call(tailReq).quantifying("TailReq").forall { treq =>
           for {
             recvd <- call(tailReqRecvd).map(_.find(_.clientId == treq.clientId))
             _ <- recvd match {
@@ -502,13 +502,13 @@ class Spec(N: Int) extends Specification[Record] {
       },
       rule("The number of TailRes(C) and TailResRecvd(C) must be identical", pointValue = 1) {
         for {
-          trs <- call(tailRes).label("all TailRes")
-          trrs <- call(tailResRecvd).label("all TailResRecvd")
+          trs <- call(tailRes).label("TailRes")
+          trrs <- call(tailResRecvd).label("TailResRecvd")
           _ <- if (trs.size == trrs.size) accept else reject("Different number of TailRes and TailResRecvd")
         } yield ()
       },
       rule("TailRes(C) must happen before TailResRecvd(C)", pointValue = 1) {
-        call(tailRes).quantifying("all TailRes").forall { treq =>
+        call(tailRes).quantifying("TailRes").forall { treq =>
           for {
             recvd <- call(tailResRecvd).map(_.find(_.clientId == treq.clientId))
             _ <- recvd match {
@@ -522,8 +522,8 @@ class Spec(N: Int) extends Specification[Record] {
 
     multiRule("Put Handling", pointValue = 2)(
       rule("Put(C) must be preceded by HeadResRecvd(C,S)", pointValue = 1) {
-        call(puts).quantifying("all Puts").forall { p =>
-          call(headResRecvd).quantifying("exists headResRecvd").exists { hrr =>
+        call(puts).quantifying("Puts").forall { p =>
+          call(headResRecvd).quantifying("headResRecvd").exists { hrr =>
             if (hrr <-< p && hrr.clientId == p.clientId && hrr.tracerIdentity == p.tracerIdentity)
               accept
             else
@@ -532,7 +532,7 @@ class Spec(N: Int) extends Specification[Record] {
         }
       },
       rule("The semantics of Put all recorded in a single Put-Trace", pointValue = 1) {
-        call(puts).quantifying("all Puts").forall { p =>
+        call(puts).quantifying("Put").forall { p =>
           val ptrace = orderedTraces.map(_.get(p.traceId).toList).requireOne
           for {
             pRecvd <- ptrace.map(_.collect{ case a: PutRecvd => a }).requireSome.map(_.last).label("last PutRecvd")
@@ -567,8 +567,8 @@ class Spec(N: Int) extends Specification[Record] {
 
     multiRule("Get Handling", pointValue = 2)(
       rule("Get(C) must be preceded by TailResRecvd(C,S)", pointValue = 1) {
-        call(gets).quantifying("all Gets").forall { g =>
-          call(tailResRecvd).quantifying("exists tailResRecvd").exists { trr =>
+        call(gets).quantifying("Get").forall { g =>
+          call(tailResRecvd).quantifying("tailResRecvd").exists { trr =>
             if (trr <-< g && trr.clientId == g.clientId && trr.tracerIdentity == g.tracerIdentity)
               accept
             else
@@ -577,7 +577,7 @@ class Spec(N: Int) extends Specification[Record] {
         }
       },
       rule("The semantics of Get all recorded in a single Get-Trace", pointValue = 1) {
-        call(gets).quantifying("all Gets").forall { g =>
+        call(gets).quantifying("Get").forall { g =>
           val gtrace = orderedTraces.map(_.get(g.traceId).toList).requireOne
           for {
             gRecvd <- gtrace.map(_.collect{ case a: GetRecvd => a }).requireSome.map(_.last).label("last GetRecvd")
