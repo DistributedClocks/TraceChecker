@@ -703,11 +703,11 @@ def a3spec(@arg(doc = "the number of servers on the chain") n: Int,
     println("details:")
     results.counterExamples().foreach(print)
   }
-  println("Score: " + results.grade)
-  results.dump().foreach(print)
-  val p = new PrintWriter("grade_out.log")
-  try {
-    p.println(results.grade)
-    results.dump().foreach(p.print)
-  } finally {p.close()}
+//  println("Score: " + results.grade)
+//  results.dump().foreach(print)
+//  val p = new PrintWriter("grade_out.log")
+//  try {
+//    p.println(results.grade)
+//    results.dump().foreach(p.print)
+//  } finally {p.close()}
 }
