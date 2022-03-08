@@ -114,7 +114,7 @@ object ElementParser {
               case (line, lineNum) =>
                 val obj = line.parseJson.asJsObject
                 parsers.foldLeft(None: Option[Element]) { (acc, parser) =>
-                  acc.orElse(parser.tryParse(obj, lineNum))
+                  acc.orElse(parser.tryParse(obj, lineNum+1))
                 }.getOrElse {
                   throw ParsingException(obj, parsers.map(_.tagName))
                 }
