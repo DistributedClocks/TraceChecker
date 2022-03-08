@@ -593,18 +593,29 @@ class Spec(N: Int) extends Specification[Record] {
 
     multiRule("Put-Get Data Consistency", pointValue = 1)(
       rule("Get must have the same value as its latest preceding Put", pointValue = 1) {
+        val putResultRecvdSorted = putResultRecvd.map(_.sorted(GIdOrdering))
         call(puts).quantifying("Put").forall { p =>
-          call(putResultRecvd).quantifying("corresponding PutResultRecvd").forall {
-            case presRecvd if p.key == presRecvd.key =>
+          call(putResultRecvdSorted).quantifying("corresponding PutResultRecvd").forall {
+            case presRecvd if p.traceId == presRecvd.traceId && p.key == presRecvd.key =>
               call(getResultRecvd).quantifying("corresponding GetResultRecvd").forall {
                 case gresRecvd if p.key == gresRecvd.key && presRecvd.gId < gresRecvd.gId =>
-                   call(putResultRecvd).flatMap { allPutResultRecvd =>
-                     if (!allPutResultRecvd.exists(x => x.gId > presRecvd.gId && x.gId < gresRecvd.gId)) {
-                       if (p.value != gresRecvd.value)
-                         reject("GetResultRecvd doesn't have the same value as its latest preceding Put")
-                     }
-                     accept
-                   }
+                  for {
+                    pResultRecvdSorted <- putResultRecvdSorted
+                    idx = pResultRecvdSorted.indexOf(presRecvd)
+                    nextOpt = pResultRecvdSorted.lift(idx+1)
+                    _ = nextOpt match {
+                      case Some(next) =>
+                        if (gresRecvd.gId < next.gId && gresRecvd.value != p.value)
+                          reject("GetResultRecvd doesn't have the same value as its latest preceding Put")
+                        else
+                          accept
+                      case None =>
+                        if (gresRecvd.value == p.value)
+                          accept
+                        else
+                          reject("GetResultRecvd doesn't have the same value as its latest preceding Put")
+                    }
+                  } yield()
               }
           }
         }
@@ -614,10 +625,15 @@ class Spec(N: Int) extends Specification[Record] {
     multiRule("Get Before Any Put Data Consistency", pointValue = 1)(
       rule("Get with no preceding Put should return empty string", pointValue = 1) {
         for {
-          earliestPutResRecvd <- putResultRecvd.map(_.sorted(GIdOrdering).head)
-          _ = call(getResultRecvd).quantifying("GetResultRecvd").forall {
-            case gresRecvd if gresRecvd.gId < earliestPutResRecvd.gId && gresRecvd.value != "" =>
-              reject("GetResultRecvd with not preceding PutResultRecvd has non-empty value")
+          earliestPutResRecvdOpt <- putResultRecvd.map(_.sorted(GIdOrdering).headOption)
+          _ = call(getResultRecvd).quantifying("GetResultRecvd").forall { gresRecvd =>
+            earliestPutResRecvdOpt match {
+              case Some(earliestPutResRecvd) if gresRecvd.gId < earliestPutResRecvd.gId && gresRecvd.value != "" =>
+                reject("GetResultRecvd with not preceding PutResultRecvd has non-empty value")
+              case None if gresRecvd.value != "" =>
+                reject("GetResultRecvd with not preceding PutResultRecvd has non-empty value")
+              case _ => accept
+            }
           }
         } yield ()
       }
