@@ -537,7 +537,7 @@ class Spec(N: Int) extends Specification[Record] {
 
     multiRule("Put Handling", pointValue = 2)(
       rule("Put(C) must be preceded by HeadResRecvd(C,S)", pointValue = 1) {
-        call(puts).quantifying("Puts").forall { p =>
+        call(puts).quantifying("Put").forall { p =>
           call(headResRecvd).quantifying("headResRecvd").exists { hrr =>
             if (hrr <-< p && hrr.clientId == p.clientId && hrr.tracerIdentity == p.tracerIdentity)
               accept
