@@ -597,7 +597,7 @@ class Spec(N: Int) extends Specification[Record] {
           call(putResultRecvd).quantifying("corresponding PutResultRecvd").forall {
             case presRecvd if p.key == presRecvd.key =>
               call(getResultRecvd).quantifying("corresponding GetResultRecvd").forall {
-                case gresRecvd if p.key == gresRecvd.key && presRecvd.gId < gresRecvd =>
+                case gresRecvd if p.key == gresRecvd.key && presRecvd.gId < gresRecvd.gId =>
                    call(putResultRecvd).flatMap { allPutResultRecvd =>
                      if (!allPutResultRecvd.exists(x => x.gId > presRecvd.gId && x.gId < gresRecvd.gId)) {
                        if (p.value != gresRecvd.value)
@@ -667,7 +667,7 @@ def a3spec(@arg(doc = "the number of servers on the chain") n: Int,
            @arg(doc = "path to the trace file to analyse. this file will the one you told the tracing server to generate, and should contain exactly one trace") traceFiles: os.Path*): Unit = {
   val spec = new Spec(n)
   if (traceFiles.isEmpty) {
-    sys.error("No trace file provided.")
+    println("No trace file provided.")
     sys.exit(0)
   }
   val results = spec.checkRules(traceFiles:_*)
