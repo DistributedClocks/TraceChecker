@@ -8,14 +8,14 @@ final case class QueryContext private (entries: Map[String,QueryContext.Entry] =
   override def toString: String = s"QueryContext(annotations = $entries)"
 
   def withGroup(name: String, ctx: QueryContext): QueryContext = {
-    assert(!entries.contains(name))
+    assert(!entries.contains(name), name)
     copy(
       entries = entries.updated(name, QueryContext.GroupEntry(ctx)),
       entrySeq = name :: entrySeq)
   }
 
   def withObservation(name: String, value: Any): QueryContext = {
-    assert(!entries.contains(name))
+    assert(!entries.contains(name), name)
     copy(
       entries = entries.updated(name, QueryContext.ValueEntry(value)),
       entrySeq = name :: entrySeq)

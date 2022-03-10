@@ -550,7 +550,7 @@ class Spec(N: Int) extends Specification[Record] {
       },
       rule("The semantics of Put all recorded in a single Put-Trace", pointValue = 1) {
         call(puts).quantifying("Put").forall { p =>
-          val ptrace = orderedTraces.map(_.get(p.traceId).toList).requireOne.label("Put-Trace")
+          val ptrace = orderedTraces.map(_.get(p.traceId).toList).requireOne
           for {
             presRecvd <- ptrace.map(_.collect{ case a: PutResultRecvd if a.tracerIdentity == p.tracerIdentity => a })
               .requireOne
@@ -593,7 +593,7 @@ class Spec(N: Int) extends Specification[Record] {
       },
       rule("The semantics of Get all recorded in a single Get-Trace", pointValue = 1) {
         call(gets).quantifying("Get").forall { g =>
-          val gtrace = orderedTraces.map(_.get(g.traceId).toList).requireOne.label("Get-Trace")
+          val gtrace = orderedTraces.map(_.get(g.traceId).toList).requireOne
           for {
             gresRecvd <- gtrace.map(_.collect{ case a: GetResultRecvd if a.tracerIdentity == g.tracerIdentity => a })
               .requireOne
