@@ -375,7 +375,7 @@ class Spec(N: Int) extends Specification[Record] {
         }
       },
       rule("AllServersJoined must exist and happen before PutRecvd/GetRecvd", pointValue = 1) {
-        call(allServersJoined).requireSome.quantifying("AllServersJoined").exists{ allJoined =>
+        call(allServersJoined).requireSome.quantifying("AllServersJoined").forall{ allJoined =>
           for {
             _ <- call(putRecvd).quantifying("PutRecvd").forall{ pr =>
               if (allJoined <-< pr) accept else reject("AllServersJoined doesn't happen before PutRecvd")
@@ -393,7 +393,7 @@ class Spec(N: Int) extends Specification[Record] {
         call(serverFail).quantifying("ServerFail").forall { sf =>
           call(serverFailRecvd).map(_.collect{ case a if sf.serverId == a.failedServerId && sf <-< a => a })
             .require(l => s"ServerFail should only be followed by one or two ServerFailedRecvd, found: $l") { sfr =>
-              sfr.size == 1 || sfr.size == 2
+              sfr.size <= 2
             }
         }
       },
