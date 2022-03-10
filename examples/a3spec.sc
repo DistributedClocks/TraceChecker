@@ -389,7 +389,7 @@ class Spec(N: Int) extends Specification[Record] {
     ),
 
     multiRule("Failure Handling", pointValue = 5)(
-      rule("ServerFail(S) followed by one or two ServerFailRecvd(S)", pointValue = 1) {
+      rule("ServerFail(S) followed by at most two ServerFailRecvd(S)", pointValue = 1) {
         call(serverFail).quantifying("ServerFail").forall { sf =>
           call(serverFailRecvd).map(_.collect{ case a if sf.serverId == a.failedServerId && sf <-< a => a })
             .require(l => s"ServerFail should only be followed by one or two ServerFailedRecvd, found: $l") { sfr =>
@@ -419,11 +419,13 @@ class Spec(N: Int) extends Specification[Record] {
           } yield ()
         }
       },
-      rule("ServerFailRecvd(S) must be followed by at most one ServerFailHandled(S)", pointValue = 1) {
+      rule("ServerFailRecvd(S) must be followed by at most two ServerFailHandled(S)", pointValue = 1) {
         call(serverFailRecvd).quantifying("ServerFailRecvd").forall { sfr =>
           call(serverFailHandled).map(_.collect{ case a if sfr.failedServerId == a.failedServerId && sfr <-< a => a })
             .label("succeeding ServerFailHanlded")
-            .requireAtMostOne
+            .require(_ => "At most two ServerFailHandled(S) happens after ServerFailRecvd(S)") { failHandled =>
+              failHandled.size <= 2
+            }
         }
       },
       rule("ServerFailHandledRecvd(S) must be preceded by ServerFailHandled(S)", pointValue = 1) {
