@@ -4,7 +4,6 @@ import $ivy.`com.github.DistributedClocks:tracechecker_2.13:0.1.0-SNAPSHOT`
 import com.github.distributedclocks.tracechecker._
 
 import java.util.Base64
-import scala.collection.mutable.ListBuffer
 
 // traits with that caputre certain fields
 sealed trait ClientIdOp {
@@ -691,7 +690,7 @@ class Spec(N: Int) extends Specification[Record] {
           resL = res.toList.map(_._2)
         } yield resL
         res.quantifying("PutResultRecvd/GetResultRecvd recorded by the same client").forall { m =>
-          var errorPair: ListBuffer[Record with Res] = null
+          var errorPair: mutable.ListBuffer[Record with Res] = null
           val allRes = m.combinations(2).forall { comb =>
             val res = comb.head.opId.compareTo(comb(1).opId) == comb.head.gId.compareTo(comb(1).gId)
             if (!res) errorPair = comb
