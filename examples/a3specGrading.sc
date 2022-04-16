@@ -89,6 +89,15 @@ def chainPp(chain: String): List[Int] =
 
 def chainContains(chain: String, serverId: Int): Boolean = chainPp(chain).contains(serverId)
 
+// This is a spec implementation with more sanity checks
+// based on the testing scenarios we are using for A3 grading:
+// 1. There must be some Get requests
+// 2. There must be some Put requests
+// 3. There must be some KvslibStart
+// 4. There must be some KvslibStop
+// 5. There must be HeadReq and HeadRes
+// 6. There must be TailReq and TailRes
+// 7. If there are some server failures detected, then they must be handled
 class Spec(N: Int) extends Specification[Record] {
   import Specification._
 
@@ -105,21 +114,25 @@ class Spec(N: Int) extends Specification[Record] {
   val kvslibStarts: Query[List[KvslibStart]] =
     materialize {
       elements.map(_.collect{ case a: KvslibStart => a })
+        .requireSome
     }
 
   val kvslibStops: Query[List[KvslibStop]] =
     materialize {
       elements.map(_.collect{ case a: KvslibStop => a })
+        .requireSome
     }
 
   val puts: Query[List[Put]] =
     materialize {
       elements.map(_.collect{ case a: Put => a })
+        .requireSome
     }
 
   val gets: Query[List[Get]] =
     materialize {
       elements.map(_.collect{ case a: Get => a })
+        .requireSome
     }
 
   val theCoordStart: Query[CoordStart] =
@@ -131,10 +144,10 @@ class Spec(N: Int) extends Specification[Record] {
     elements.map(_.collect{ case a: AllServersJoined => a})
 
   val serverStart: Query[List[ServerStart]] =
-    materialize{ elements.map(_.collect{ case a: ServerStart => a }) }
+    materialize{ elements.map(_.collect{ case a: ServerStart => a }).requireSome }
 
   val serverJoining: Query[List[ServerJoining]] =
-    materialize{ elements.map(_.collect{ case a: ServerJoining => a }) }
+    materialize{ elements.map(_.collect{ case a: ServerJoining => a }).requireSome }
 
   val opsWithClientId: Query[List[Record with ClientIdOp]] =
     materialize{ elements.map(_.collect{ case a: ClientIdOp => a }) }
@@ -155,7 +168,7 @@ class Spec(N: Int) extends Specification[Record] {
     materialize{ elements.map(_.collect{ case a: ServerJoinedRecvd => a }) }
 
   val newChain: Query[List[NewChain]] =
-    materialize{ elements.map(_.collect{ case a: NewChain => a }) }
+    materialize{ elements.map(_.collect{ case a: NewChain => a }).requireSome }
 
   val putRecvd: Query[List[PutRecvd]] =
     materialize{ elements.map(_.collect{ case a: PutRecvd => a }) }
@@ -179,25 +192,25 @@ class Spec(N: Int) extends Specification[Record] {
     materialize{ elements.map(_.collect({ case a: ServerFailHandledRecvd => a })) }
 
   val headReq: Query[List[HeadReq]] =
-    materialize{ elements.map(_.collect({ case a: HeadReq => a })) }
+    materialize{ elements.map(_.collect({ case a: HeadReq => a })).requireSome }
 
   val headReqRecvd: Query[List[HeadReqRecvd]] =
     materialize{ elements.map(_.collect({ case a: HeadReqRecvd => a })) }
 
   val headRes: Query[List[HeadRes]] =
-    materialize{ elements.map(_.collect({ case a: HeadRes => a })) }
+    materialize{ elements.map(_.collect({ case a: HeadRes => a })).requireSome }
 
   val headResRecvd: Query[List[HeadResRecvd]] =
     materialize{ elements.map(_.collect({ case a: HeadResRecvd => a })) }
 
   val tailReq: Query[List[TailReq]] =
-    materialize{ elements.map(_.collect({ case a: TailReq => a })) }
+    materialize{ elements.map(_.collect({ case a: TailReq => a })).requireSome }
 
   val tailReqRecvd: Query[List[TailReqRecvd]] =
     materialize{ elements.map(_.collect({ case a: TailReqRecvd => a })) }
 
   val tailRes: Query[List[TailRes]] =
-    materialize{ elements.map(_.collect({ case a: TailRes => a })) }
+    materialize{ elements.map(_.collect({ case a: TailRes => a })).requireSome }
 
   val tailResRecvd: Query[List[TailResRecvd]] =
     materialize{ elements.map(_.collect({ case a: TailResRecvd => a })) }
@@ -216,6 +229,17 @@ class Spec(N: Int) extends Specification[Record] {
       reject(s"Action ${trace(idx)} is in the wrong trace")
     }
   }
+
+  def sanityCheck(): Query[Unit] =
+    for {
+      failed <- serverFail.map(_.nonEmpty)
+      handled <- serverFailHandledRecvd.map(_.nonEmpty)
+      _ <- if (failed != handled) {
+          reject("Not all failed server are handled, or fcheck has reported false positives")
+        } else {
+          accept
+        }
+    } yield ()
 
   override def rootRule: RootRule = RootRule(
     multiRule("[10] Initialization", pointValue = 10)(
@@ -297,7 +321,7 @@ class Spec(N: Int) extends Specification[Record] {
 
     multiRule("[10] Termination", pointValue = 10)(
       rule("[10] KvslibStop(C) cannot be followed by any actions recorded by C", pointValue = 10) {
-        call(kvslibStops).quantifying("KvslibStop(C)").forall { kstop =>
+        call(kvslibStops.requireSome).quantifying("KvslibStop(C)").forall { kstop =>
           call(elements).quantifying("Action recorded by C ")
             .forall {
               case elem if elem.tracerIdentity == kstop.tracerIdentity && elem != kstop =>
@@ -389,57 +413,72 @@ class Spec(N: Int) extends Specification[Record] {
 
     multiRule("[20] Failure Handling", pointValue = 20)(
       rule("[4] ServerFail(S) followed by at most two ServerFailRecvd(S)", pointValue = 4) {
-        call(serverFail).quantifying("ServerFail").forall { sf =>
-          call(serverFailRecvd).map(_.collect{ case a if sf.serverId == a.failedServerId && sf <-< a => a })
-            .require(l => s"ServerFail should only be followed by one or two ServerFailedRecvd, found: $l") { sfr =>
-              sfr.size <= 2
-            }
-        }
+        for {
+          _ <- sanityCheck()
+          _ <- call(serverFail).quantifying("ServerFail").forall { sf =>
+            call(serverFailRecvd).map(_.collect{ case a if sf.serverId == a.failedServerId && sf <-< a => a })
+              .require(l => s"ServerFail should only be followed by one or two ServerFailedRecvd, found: $l") { sfr =>
+                sfr.size <= 2
+              }
+          }
+        } yield ()
       },
       rule("[4] At most one NewFailoverSuccessor(X) or NewFailoverPredecessor(X) happens between a ServerFailRecvd(S) and the next ServerFailRecvd(S') recorded by the same server, where X!=S, S!=S'", pointValue = 4) {
-        call(serverFailRecvd).quantifying("ServerFailRecvd").forall { sfr =>
-          for {
-            // the next ServerFailRecvd (or None if we already at the last one) recorded by the same server (identified using tracerIdentity)
-            nextOpt <- serverFailRecvd.map(_.collectFirst{ case x if x.tracerIdentity == sfr.tracerIdentity && sfr <-< x => x })
-            _ <- nextOpt match {
-              case Some(next) => call(failover).map(_.collect{
-                case a if sfr.tracerIdentity == a.tracerIdentity &&
-                  sfr.failedServerId != a.serverId &&
-                  sfr <-< a &&
-                  a <-< next
-                => a
-              })
-                .label("NewFailoverSuccessor or NewFailoverPredecessor")
-                .requireAtMostOne
-              case None => call(failover).map(_.collect{ case a if sfr.tracerIdentity == a.tracerIdentity && sfr.failedServerId != a.serverId && sfr <-< a=> a })
-                .label("NewFailoverSuccessor or NewFailoverPredecessor")
-                .requireAtMostOne
-            }
-          } yield ()
-        }
+        for {
+          _ <- sanityCheck()
+          _ <- call(serverFailRecvd).quantifying("ServerFailRecvd").forall { sfr =>
+            for {
+              // the next ServerFailRecvd (or None if we already at the last one) recorded by the same server (identified using tracerIdentity)
+              nextOpt <- serverFailRecvd.map(_.collectFirst{ case x if x.tracerIdentity == sfr.tracerIdentity && sfr <-< x => x })
+              _ <- nextOpt match {
+                case Some(next) => call(failover).map(_.collect{
+                  case a if sfr.tracerIdentity == a.tracerIdentity &&
+                    sfr.failedServerId != a.serverId &&
+                    sfr <-< a &&
+                    a <-< next
+                  => a
+                })
+                  .label("NewFailoverSuccessor or NewFailoverPredecessor")
+                  .requireAtMostOne
+                case None => call(failover).map(_.collect{ case a if sfr.tracerIdentity == a.tracerIdentity && sfr.failedServerId != a.serverId && sfr <-< a=> a })
+                  .label("NewFailoverSuccessor or NewFailoverPredecessor")
+                  .requireAtMostOne
+              }
+            } yield ()
+          }
+        } yield ()
       },
       rule("[4] ServerFailRecvd(S) must be followed by at most two ServerFailHandled(S)", pointValue = 4) {
-        call(serverFailRecvd).quantifying("ServerFailRecvd").forall { sfr =>
-          call(serverFailHandled).map(_.collect{ case a if sfr.failedServerId == a.failedServerId && sfr <-< a => a })
-            .label("succeeding ServerFailHanlded")
-            .require(_ => "At most two ServerFailHandled(S) happens after ServerFailRecvd(S)") { failHandled =>
-              failHandled.size <= 2
-            }
-        }
+        for {
+          _ <- sanityCheck()
+          _ <- call(serverFailRecvd).quantifying("ServerFailRecvd").forall { sfr =>
+            call(serverFailHandled).map(_.collect{ case a if sfr.failedServerId == a.failedServerId && sfr <-< a => a })
+              .label("succeeding ServerFailHanlded")
+              .require(_ => "At most two ServerFailHandled(S) happens after ServerFailRecvd(S)") { failHandled =>
+                failHandled.size <= 2
+              }
+          }
+        } yield ()
       },
       rule("[4] ServerFailHandledRecvd(S) must be preceded by ServerFailHandled(S)", pointValue = 4) {
-        call(serverFailHandledRecvd).quantifying("ServerFailHandledRecvd").forall{ sfhr =>
-          call(serverFailHandled).map(_.collect{ case a if sfhr.failedServerId == a.failedServerId && a <-< sfhr => a })
-            .label("preceding ServerFailHandled")
-            .requireSome
-        }
+        for {
+          _ <- sanityCheck()
+          _ <- call(serverFailHandledRecvd).quantifying("ServerFailHandledRecvd").forall{ sfhr =>
+            call(serverFailHandled).map(_.collect{ case a if sfhr.failedServerId == a.failedServerId && a <-< sfhr => a })
+              .label("preceding ServerFailHandled")
+              .requireSome
+          }
+        } yield ()
       },
       rule("[4] ServerFail(S) must be eventually followed by NewChain(C) without S", pointValue = 4) {
-        call(serverFail).quantifying("ServerFail").forall { sf =>
-          call(newChain).quantifying("NewChain").exists {
-            case c if sf <-< c && !chainContains(c.chain, sf.serverId) => accept
+        for {
+          _ <- sanityCheck()
+          _ <- call(serverFail).quantifying("ServerFail").forall { sf =>
+            call(newChain).quantifying("NewChain").exists {
+              case c if sf <-< c && !chainContains(c.chain, sf.serverId) => accept
+            }
           }
-        }
+        } yield ()
       }
     ),
 
@@ -650,6 +689,7 @@ class Spec(N: Int) extends Specification[Record] {
     multiRule("[10] Get Before Any Put Data Consistency", pointValue = 10)(
       rule("[10] Get with no preceding Put should return empty string", pointValue = 10) {
         for {
+          _ <- gets
           earliestPutResRecvdOpt <- putResultRecvd.map(_.sorted(GIdOrdering).headOption)
           _ = call(getResultRecvd).quantifying("GetResultRecvd").forall { gresRecvd =>
             earliestPutResRecvdOpt match {
