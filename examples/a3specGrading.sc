@@ -727,6 +727,7 @@ class Spec(N: Int) extends Specification[Record] {
               res(req.clientId) += r.get
             }
           }
+          _ = println(res)
           resL = res.toList.map(_._2)
         } yield resL
         res.quantifying("PutResultRecvd/GetResultRecvd recorded by the same client").forall { m =>
